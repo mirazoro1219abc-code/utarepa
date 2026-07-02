@@ -318,6 +318,7 @@
     <div class="mfoot">
       <span>曲情報・試聴は iTunes Search API から取得</span>
       <span class="btns">
+        <button id="bulkAdd">📋 まとめて追加</button>
         <button id="manualAdd">手入力で追加</button>
         <button id="modalClose">閉じる</button>
       </span>
@@ -513,6 +514,138 @@ $('manualAdd').onclick = () => {
   openSong(createSong({}).id);
   $('f-title').focus();
 };
+
+/* まとめて追加（貼り付け一括登録） */
+$('bulkAdd').onclick = () => {
+  $('results').innerHTML = `
+    <div style="padding:6px 10px">
+      <div style="font-size:12px;color:var(--sub);margin-bottom:6px">
+        1行に1曲、「曲名 / アーティスト」の形式で貼り付け（アーティスト省略OK）。<br>
+        カラーシング等のレパートリーは、画面のスクショから読み取るか、曲名リストを貼り付けてください。
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;font-size:12px">
+        <button id="bulkImgBtn">📷 スクショから読み取り</button>
+        <input type="file" id="bulkImg" accept="image/*" multiple hidden>
+        <label><input type="checkbox" id="bulkPair"> 曲名の次の行がアーティスト（2行で1曲）</label>
+      </div>
+      <textarea id="bulkText" style="width:100%;min-height:150px" placeholder="香水 / 瑛人&#10;Lemon / 米津玄師&#10;マリーゴールド"></textarea>
+      <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;font-size:12px">
+        <label>ステータス
+          <select id="bulkStatus">
+            <option value="ok">✅ 歌える</option>
+            <option value="prac" selected>🎯 練習中</option>
+            <option value="want">💭 歌いたい</option>
+          </select>
+        </label>
+        <label>タグ <input type="text" id="bulkTag" placeholder="例: カラーシング" style="width:110px"></label>
+        <label><input type="checkbox" id="bulkLookup" checked> ジャケット等を自動補完</label>
+        <button class="primary" id="bulkGo">追加する</button>
+      </div>
+      <div id="bulkProgress" style="font-size:12px;color:var(--sub);margin-top:6px"></div>
+    </div>`;
+  $('bulkGo').onclick = runBulkAdd;
+  $('bulkImgBtn').onclick = () => $('bulkImg').click();
+  $('bulkImg').addEventListener('change', e => {
+    if (e.target.files.length) ocrImages([...e.target.files]);
+    e.target.value = '';
+  });
+};
+
+/* スクショ文字読み取り（Tesseract.js — 端末内で処理、画像は外部送信されない） */
+let ocrWorkerPromise = null;
+function loadTesseract() {
+  if (window.Tesseract) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js';
+    s.onload = res;
+    s.onerror = () => rej(new Error('load failed'));
+    document.head.appendChild(s);
+  });
+}
+async function getOcrWorker(onProgress) {
+  await loadTesseract();
+  if (!ocrWorkerPromise) {
+    ocrWorkerPromise = Tesseract.createWorker('jpn', 1, {
+      logger: m => onProgress && onProgress(m)
+    });
+  }
+  return ocrWorkerPromise;
+}
+async function ocrImages(files) {
+  const prog = $('bulkProgress');
+  const btn = $('bulkImgBtn');
+  btn.disabled = true;
+  try {
+    prog.textContent = '読み取りの準備中…（初回は日本語データのダウンロードに少し時間がかかります）';
+    const worker = await getOcrWorker(m => {
+      if (m.status && typeof m.progress === 'number' && m.progress < 1) {
+        prog.textContent = `読み取りの準備中… ${Math.round(m.progress * 100)}%`;
+      }
+    });
+    let allLines = [];
+    for (let i = 0; i < files.length; i++) {
+      prog.textContent = `${i + 1}/${files.length}枚目を読み取り中…`;
+      const { data } = await worker.recognize(files[i]);
+      const lines = data.text.split('\n')
+        .map(l => l.replace(/\s+/g, ' ').trim())
+        .map(l => l.replace(/(?<=[　-鿿぀-ヿ＀-￯])\s+(?=[　-鿿぀-ヿ＀-￯])/g, ''))
+        .filter(l => l.length >= 2)
+        .filter(l => !/^(レパートリー|推し曲|マイページ|検索|すべて|編集|フォロー中?)$/.test(l));
+      allLines = allLines.concat(lines);
+    }
+    if ($('bulkPair').checked) {
+      const paired = [];
+      for (let i = 0; i < allLines.length; i += 2) {
+        paired.push(allLines[i] + (allLines[i + 1] ? ' / ' + allLines[i + 1] : ''));
+      }
+      allLines = paired;
+    }
+    const ta = $('bulkText');
+    ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + allLines.join('\n');
+    prog.textContent = '読み取り結果を上で確認・修正してから「追加する」を押してください（読み間違いは直せます）';
+  } catch (err) {
+    prog.textContent = '読み取りに失敗しました。ネット接続を確認するか、曲名を直接貼り付けてください。';
+  }
+  btn.disabled = false;
+}
+
+async function runBulkAdd() {
+  const lines = $('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) { toast('曲を入力してください'); return; }
+  const status = $('bulkStatus').value;
+  const tag = $('bulkTag').value.trim();
+  const lookup = $('bulkLookup').checked;
+  $('bulkGo').disabled = true;
+  let added = 0;
+  for (let i = 0; i < lines.length; i++) {
+    const parts = lines[i].split(/[\/／\t]/).map(s => s.trim()).filter(Boolean);
+    let title = parts[0] || '';
+    let artist = parts[1] || '';
+    let artwork = '';
+    if (lookup && title) {
+      $('bulkProgress').textContent = `${i + 1}/${lines.length}曲目を照会中… ${title}`;
+      try {
+        const d = await itunesSearch((title + ' ' + artist).trim());
+        const hit = (d.results || [])[0];
+        if (hit) {
+          title = hit.trackName || title;
+          artist = hit.artistName || artist;
+          artwork = (hit.artworkUrl100 || '').replace('100x100', '200x200');
+        }
+        await new Promise(r => setTimeout(r, 400));
+      } catch (e) { /* 照会に失敗しても入力のまま追加する */ }
+    }
+    const s = createSong({ title, artist, artwork });
+    s.status = status;
+    if (tag) s.tags = [tag];
+    added++;
+  }
+  persist(true);
+  closeModal();
+  renderList();
+  toast(added + '曲を追加しました');
+}
 $('doSearch').onclick = doSearch;
 $('songQuery').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
