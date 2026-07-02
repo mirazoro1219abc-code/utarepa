@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#faf7f2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="うたレパ">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>🎤 うたレパ — 歌のレパートリー帳</title>
+<style>
+  :root {
+    --bg: #faf7f2;
+    --card: #ffffff;
+    --ink: #2d2a26;
+    --sub: #8a837a;
+    --line: #e8e2d8;
+    --accent: #e5533d;
+    --accent-soft: #fdeae6;
+    --star: #f5b301;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(60,50,40,.08);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+  }
+  header {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(250,247,242,.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+    padding: 14px 20px 10px;
+  }
+  .header-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
+  h1 small { font-size: 12px; color: var(--sub); font-weight: normal; margin-left: 8px; }
+  .stats { font-size: 12px; color: var(--sub); }
+  .spacer { flex: 1; }
+  .controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  input[type=search], select, input[type=text], input[type=date], textarea {
+    font: inherit; color: var(--ink);
+    border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 10px; background: #fff; outline: none;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  input[type=search] { min-width: 200px; flex: 1; max-width: 320px; }
+  button {
+    font: inherit; cursor: pointer; border: 1px solid var(--line);
+    background: #fff; color: var(--ink); border-radius: 8px; padding: 7px 14px;
+    transition: background .15s;
+  }
+  button:hover { background: #f4efe7; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+  button.primary:hover { background: #d04530; }
+  button.danger { color: #c0392b; border-color: #eccfcb; }
+  button.danger:hover { background: #fdf0ee; }
+
+  /* ---- song card grid ---- */
+  main { padding: 20px; max-width: 1100px; margin: 0 auto; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px 16px; cursor: pointer; box-shadow: var(--shadow);
+    transition: transform .12s, box-shadow .12s;
+  }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(60,50,40,.13); }
+  .card .title { font-weight: bold; font-size: 16px; margin-bottom: 2px; }
+  .card .artist { color: var(--sub); font-size: 13px; margin-bottom: 8px; }
+  .card .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+  .badge { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: bold; }
+  .badge.ok    { background: #e3f4e5; color: #2e7d43; }
+  .badge.prac  { background: #fdf3d7; color: #a3720a; }
+  .badge.want  { background: #e8ecfb; color: #4a5cb8; }
+  .keychip { background: #f4efe7; border-radius: 6px; padding: 1px 7px; color: #6b6459; }
+  .stars { color: var(--star); letter-spacing: 1px; font-size: 14px; }
+  .stars .off { color: #ddd6ca; }
+  .tagchip { background: var(--accent-soft); color: #b04530; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+  .empty { text-align: center; color: var(--sub); padding: 60px 0; }
+
+  /* ---- detail view ---- */
+  #detailView { max-width: 800px; margin: 0 auto; padding: 20px; }
+  .detail-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 16px;
+  }
+  .field-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; color: var(--sub); font-weight: bold; }
+  .field.grow { flex: 1; min-width: 180px; }
+  #f-title { font-size: 18px; font-weight: bold; }
+  .rating-widget { font-size: 26px; cursor: pointer; user-select: none; line-height: 1; }
+  .rating-widget span { color: #ddd6ca; transition: color .1s; }
+  .rating-widget span.on { color: var(--star); }
+  textarea#f-memo { width: 100%; min-height: 70px; resize: vertical; }
+
+  /* ---- lyrics & annotations ---- */
+  .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+  .toolbar .hint { font-size: 11px; color: var(--sub); width: 100%; }
+  .annbtn { font-size: 12px; padding: 4px 10px; border-radius: 999px; border-width: 2px; }
+  #lyrics {
+    min-height: 220px; white-space: pre-wrap; font-size: 16px; line-height: 2.2;
+    border: 1px dashed transparent; border-radius: 8px; padding: 10px;
+  }
+  #lyrics.editing { border-color: var(--accent); background: #fffdf8; outline: none; }
+  #lyrics:empty::before { content: "（歌詞未登録 — 「歌詞を編集」を押して貼り付け）"; color: var(--sub); }
+
+  .ann { border-radius: 3px; padding: 0 1px; cursor: pointer; }
+  .ann-shakuri  { text-decoration: underline wavy #e67e22 2px; text-underline-offset: 4px; }
+  .ann-fall     { text-decoration: underline wavy #3498db 2px; text-underline-offset: 4px; }
+  .ann-kobushi  { text-decoration: underline double #9b59b6 2px; text-underline-offset: 4px; }
+  .ann-vibrato  { text-decoration: underline wavy #16a085 2px; text-underline-offset: 4px; }
+  .ann-falsetto { background: #fde3ef; }
+  .ann-accent   { color: #e74c3c; font-weight: bold; }
+  .ann-tame     { text-decoration: underline dashed #27ae60 2px; text-underline-offset: 4px; }
+  .ann-note     { background: #fff3c4; border-bottom: 2px dotted #b8860b; }
+  .breath       { color: #2980b9; font-weight: bold; cursor: pointer; margin: 0 1px; }
+
+  /* toolbar button colors matching */
+  .annbtn[data-type=shakuri]  { border-color: #e67e22; color: #b35c0e; }
+  .annbtn[data-type=fall]     { border-color: #3498db; color: #1f6da8; }
+  .annbtn[data-type=kobushi]  { border-color: #9b59b6; color: #7a3fa0; }
+  .annbtn[data-type=vibrato]  { border-color: #16a085; color: #0e7a63; }
+  .annbtn[data-type=falsetto] { border-color: #e84393; color: #c22a75; }
+  .annbtn[data-type=accent]   { border-color: #e74c3c; color: #c0392b; }
+  .annbtn[data-type=tame]     { border-color: #27ae60; color: #1d8046; }
+  .annbtn[data-type=note]     { border-color: #b8860b; color: #96700a; }
+  .annbtn[data-type=breath]   { border-color: #2980b9; color: #2273a5; }
+
+  /* ---- 曲検索モーダル（デンモク風） ---- */
+  #modalBack {
+    position: fixed; inset: 0; background: rgba(40,30,20,.45); z-index: 60;
+    display: none; align-items: flex-start; justify-content: center; padding: 50px 14px 14px;
+  }
+  #modalBack.show { display: flex; }
+  #searchModal {
+    background: #fff; border-radius: 16px; width: 100%; max-width: 540px;
+    max-height: 82vh; display: flex; flex-direction: column;
+    box-shadow: 0 10px 40px rgba(0,0,0,.25);
+  }
+  #searchModal .mhead { padding: 14px 16px 12px; border-bottom: 1px solid var(--line); }
+  #searchModal .mrow { display: flex; gap: 8px; margin-top: 8px; }
+  #songQuery { flex: 1; min-width: 0; }
+  #results { overflow-y: auto; padding: 8px; flex: 1; }
+  .result { display: flex; gap: 10px; align-items: center; padding: 8px; border-radius: 10px; cursor: pointer; }
+  .result:hover { background: #f7f2ea; }
+  .result img { width: 48px; height: 48px; border-radius: 8px; flex-shrink: 0; background: #f1ebe1; }
+  .result .r-info { flex: 1; min-width: 0; }
+  .result .r-info div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .result .r-title { font-weight: bold; font-size: 14px; }
+  .result .r-artist { font-size: 12px; color: var(--sub); }
+  .result .r-album { font-size: 11px; color: #b3aca1; }
+  .previewBtn { flex-shrink: 0; border-radius: 999px; width: 36px; height: 36px; padding: 0; }
+  .mfoot {
+    padding: 10px 14px; border-top: 1px solid var(--line);
+    display: flex; gap: 8px; justify-content: space-between; align-items: center;
+    font-size: 11px; color: var(--sub); flex-wrap: wrap;
+  }
+  .mfoot .btns { display: flex; gap: 8px; }
+
+  /* ---- カードのジャケット表示 ---- */
+  .card { display: flex; gap: 12px; align-items: flex-start; }
+  .card .art {
+    width: 54px; height: 54px; border-radius: 10px; flex-shrink: 0;
+    background: #f1ebe1; object-fit: cover;
+    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  }
+  .card .cbody { min-width: 0; flex: 1; }
+  #f-art { width: 72px; height: 72px; border-radius: 12px; background: #f1ebe1; object-fit: cover; }
+
+  /* ---- popover ---- */
+  #popover {
+    position: absolute; z-index: 50; background: #fff; border: 1px solid var(--line);
+    border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.15); padding: 10px 12px;
+    font-size: 13px; max-width: 260px; display: none;
+  }
+  #popover .ptype { font-weight: bold; margin-bottom: 4px; }
+  #popover .pnote { color: #5a5347; margin-bottom: 8px; white-space: pre-wrap; }
+  #popover .pbtns { display: flex; gap: 6px; }
+  #popover button { padding: 3px 10px; font-size: 12px; }
+
+  /* ---- toast ---- */
+  #toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: #fff; padding: 9px 20px; border-radius: 999px;
+    font-size: 13px; opacity: 0; transition: all .25s; z-index: 100; pointer-events: none;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 600px) {
+    main, #detailView { padding: 12px; }
+    input[type=search] { min-width: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-top">
+    <h1>🎤 うたレパ<small>自分の歌レパートリー帳</small></h1>
+    <span class="stats" id="stats"></span>
+    <span class="spacer"></span>
+    <button id="menuExport" title="バックアップをJSONで保存">⬇ 書き出し</button>
+    <button id="menuImport" title="JSONバックアップを読み込み">⬆ 読み込み</button>
+    <input type="file" id="importFile" accept=".json" hidden>
+  </div>
+  <div class="controls" id="listControls">
+    <input type="search" id="search" placeholder="曲名・アーティスト・タグで検索">
+    <select id="filterStatus">
+      <option value="all">すべて</option>
+      <option value="ok">歌える</option>
+      <option value="prac">練習中</option>
+      <option value="want">歌いたい</option>
+    </select>
+    <select id="sortBy">
+      <option value="added">追加順</option>
+      <option value="rating">評価が高い順</option>
+      <option value="title">曲名順</option>
+      <option value="artist">アーティスト順</option>
+    </select>
+    <button class="primary" id="addSong">＋ 曲を追加</button>
+  </div>
+</header>
+
+<main id="listView">
+  <div class="grid" id="grid"></div>
+  <div class="empty" id="emptyMsg" hidden>曲がまだありません。「＋ 曲を追加」から登録しましょう 🎶</div>
+</main>
+
+<section id="detailView" hidden>
+  <div class="detail-nav">
+    <button id="backBtn">← 一覧に戻る</button>
+    <span class="spacer"></span>
+    <button class="danger" id="deleteBtn">🗑 この曲を削除</button>
+  </div>
+
+  <div class="panel">
+    <div class="field-row">
+      <img id="f-art" alt="" hidden>
+      <div class="field grow">
+        <label>曲名</label>
+        <input type="text" id="f-title" placeholder="曲名">
+      </div>
+      <div class="field grow">
+        <label>アーティスト</label>
+        <input type="text" id="f-artist" placeholder="アーティスト">
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>ステータス</label>
+        <select id="f-status">
+          <option value="ok">✅ 歌える</option>
+          <option value="prac">🎯 練習中</option>
+          <option value="want">💭 歌いたい</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>キー設定</label>
+        <input type="text" id="f-key" placeholder="原キー / -2 など" style="width:120px">
+      </div>
+      <div class="field">
+        <label>自己評価</label>
+        <div class="rating-widget" id="f-rating"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+      </div>
+      <div class="field grow">
+        <label>タグ（カンマ区切り）</label>
+        <input type="text" id="f-tags" placeholder="バラード, 十八番, 高音キツい">
+      </div>
+      <div class="field">
+        <label>最後に歌った日</label>
+        <input type="date" id="f-lastSung">
+      </div>
+    </div>
+    <div class="field">
+      <label>歌い方メモ（全体）</label>
+      <textarea id="f-memo" placeholder="サビ前はブレス多め、2番Aメロは抑えめ…など"></textarea>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="toolbar">
+      <button id="editLyricsBtn">✏️ 歌詞を編集</button>
+      <button class="annbtn" data-type="shakuri">しゃくり</button>
+      <button class="annbtn" data-type="fall">フォール</button>
+      <button class="annbtn" data-type="kobushi">こぶし</button>
+      <button class="annbtn" data-type="vibrato">ビブラート</button>
+      <button class="annbtn" data-type="falsetto">ファルセット</button>
+      <button class="annbtn" data-type="accent">アクセント</button>
+      <button class="annbtn" data-type="tame">ため</button>
+      <button class="annbtn" data-type="note">📝 メモ</button>
+      <button class="annbtn" data-type="breath">∨ ブレス挿入</button>
+      <button id="findLyricsUta">🔎 歌ネットで歌詞を探す</button>
+      <button id="findLyricsGoogle">🔎 Googleで歌詞検索</button>
+      <div class="hint">歌詞は「🔎」ボタンで公式歌詞サイトを開いて確認 →「✏️ 歌詞を編集」に自分で入力・貼り付けしてください（自分専用メモとしての利用）。文字をドラッグで選択 → テクニックのボタンで印がつき、印をクリックすると確認・解除できます。</div>
+    </div>
+    <div id="lyrics"></div>
+  </div>
+</section>
+
+<div id="modalBack">
+  <div id="searchModal">
+    <div class="mhead">
+      <b>🎵 曲をさがして追加</b>
+      <div class="mrow">
+        <input type="search" id="songQuery" placeholder="曲名 や アーティスト名" autocomplete="off">
+        <button class="primary" id="doSearch">検索</button>
+      </div>
+    </div>
+    <div id="results"><div class="empty" style="padding:30px 0">曲名を入れて検索してください</div></div>
+    <div class="mfoot">
+      <span>曲情報・試聴は iTunes Search API から取得</span>
+      <span class="btns">
+        <button id="manualAdd">手入力で追加</button>
+        <button id="modalClose">閉じる</button>
+      </span>
+    </div>
+  </div>
+</div>
+
+<div id="popover">
+  <div class="ptype"></div>
+  <div class="pnote"></div>
+  <div class="pbtns">
+    <button id="popEdit">メモ編集</button>
+    <button id="popRemove" class="danger">解除</button>
+    <button id="popClose">閉じる</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+(() => {
+const STORE_KEY = 'utarepa.songs.v1';
+const $ = id => document.getElementById(id);
+
+const TYPE_LABEL = {
+  shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
+  falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
+};
+const STATUS_LABEL = { ok: '✅ 歌える', prac: '🎯 練習中', want: '💭 歌いたい' };
+
+let songs = load();
+let current = null;        // 現在開いている曲オブジェクト
+let popTarget = null;      // ポップオーバー対象のspan
+let saveTimer = null;
+
+/* ---------- 永続化 ---------- */
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return [sampleSong()];
+}
+function persist(silent) {
+  localStorage.setItem(STORE_KEY, JSON.stringify(songs));
+  if (!silent) toast('保存しました');
+}
+function persistDebounced() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => persist(true), 600);
+}
+function sampleSong() {
+  return {
+    id: 'sample-' + Date.now(),
+    title: 'サンプル曲（使い方デモ）',
+    artist: 'うたレパ',
+    status: 'prac', key: '原キー', rating: 3,
+    tags: ['デモ'], lastSung: '', memo: 'この曲は削除してOK。歌詞の印をクリックすると解除できます。',
+    lyrics: 'ここは<span class="ann ann-shakuri" data-type="shakuri">しゃくり</span>で入る<span class="breath" data-type="breath">∨</span>\nサビの高音は<span class="ann ann-falsetto" data-type="falsetto">ファルセット</span>に切り替え\n語尾は<span class="ann ann-fall" data-type="fall">フォール</span>で落として<span class="ann ann-vibrato" data-type="vibrato">ビブラート</span>\nここを<span class="ann ann-accent" data-type="accent">強く！</span>そして<span class="ann ann-tame" data-type="tame">ためて</span>から\n<span class="ann ann-note" data-type="note" data-note="2番はここで転調するので注意">メモ付きの箇所</span>はクリックで内容が見れます',
+    created: Date.now()
+  };
+}
+
+/* ---------- 一覧表示 ---------- */
+function starsHtml(n) {
+  let s = '';
+  for (let i = 1; i <= 5; i++) s += `<span class="${i <= n ? '' : 'off'}">★</span>`;
+  return `<span class="stars">${s}</span>`;
+}
+function renderList() {
+  const q = $('search').value.trim().toLowerCase();
+  const fs = $('filterStatus').value;
+  const sort = $('sortBy').value;
+
+  let list = songs.filter(s => {
+    if (fs !== 'all' && s.status !== fs) return false;
+    if (!q) return true;
+    const hay = (s.title + ' ' + s.artist + ' ' + (s.tags || []).join(' ')).toLowerCase();
+    return hay.includes(q);
+  });
+  const coll = new Intl.Collator('ja');
+  if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
+  else if (sort === 'title') list.sort((a, b) => coll.compare(a.title, b.title));
+  else if (sort === 'artist') list.sort((a, b) => coll.compare(a.artist, b.artist));
+  else list.sort((a, b) => b.created - a.created);
+
+  const grid = $('grid');
+  grid.innerHTML = '';
+  list.forEach(s => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.onclick = () => openSong(s.id);
+
+    const art = document.createElement(s.artwork ? 'img' : 'div');
+    art.className = 'art';
+    if (s.artwork) { art.src = s.artwork; art.alt = ''; }
+    else art.textContent = '🎵';
+
+    const title = document.createElement('div');
+    title.className = 'title'; title.textContent = s.title || '（無題）';
+    const artist = document.createElement('div');
+    artist.className = 'artist'; artist.textContent = s.artist || ' ';
+    const meta = document.createElement('div');
+    meta.className = 'meta';
+    meta.innerHTML = `<span class="badge ${s.status}">${STATUS_LABEL[s.status] || ''}</span>` +
+      starsHtml(s.rating) +
+      (s.key ? `<span class="keychip">key: ${escapeHtml(s.key)}</span>` : '');
+    (s.tags || []).forEach(t => {
+      const chip = document.createElement('span');
+      chip.className = 'tagchip'; chip.textContent = t;
+      meta.appendChild(chip);
+    });
+    const body = document.createElement('div');
+    body.className = 'cbody';
+    body.append(title, artist, meta);
+    card.append(art, body);
+    grid.appendChild(card);
+  });
+  $('emptyMsg').hidden = list.length > 0;
+
+  const c = { ok: 0, prac: 0, want: 0 };
+  songs.forEach(s => c[s.status] !== undefined && c[s.status]++);
+  $('stats').textContent = `全${songs.length}曲｜歌える ${c.ok}・練習中 ${c.prac}・歌いたい ${c.want}`;
+}
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ---------- 詳細表示 ---------- */
+function openSong(id) {
+  current = songs.find(s => s.id === id);
+  if (!current) return;
+  $('f-title').value = current.title;
+  $('f-artist').value = current.artist;
+  $('f-status').value = current.status;
+  $('f-key').value = current.key || '';
+  $('f-tags').value = (current.tags || []).join(', ');
+  $('f-lastSung').value = current.lastSung || '';
+  $('f-memo').value = current.memo || '';
+  $('f-art').hidden = !current.artwork;
+  if (current.artwork) $('f-art').src = current.artwork;
+  drawRating(current.rating);
+  $('lyrics').innerHTML = current.lyrics || '';
+  setEditing(false);
+  $('listView').hidden = true;
+  $('detailView').hidden = false;
+  window.scrollTo(0, 0);
+}
+function closeSong() {
+  hidePopover();
+  setEditing(false);
+  current = null;
+  $('detailView').hidden = true;
+  $('listView').hidden = false;
+  renderList();
+}
+$('backBtn').onclick = closeSong;
+
+$('deleteBtn').onclick = () => {
+  if (!current) return;
+  if (!confirm(`「${current.title}」を削除しますか？`)) return;
+  songs = songs.filter(s => s.id !== current.id);
+  persist();
+  closeSong();
+};
+
+function createSong(data) {
+  const s = {
+    id: 'song-' + Date.now() + '-' + Math.floor(Math.random() * 1e4),
+    title: data.title || '', artist: data.artist || '', status: 'prac', key: '', rating: 0,
+    tags: [], lastSung: '', memo: '', lyrics: '', artwork: data.artwork || '', created: Date.now()
+  };
+  songs.push(s);
+  persist(true);
+  return s;
+}
+
+/* ---------- デンモク風 曲検索モーダル ---------- */
+$('addSong').onclick = () => {
+  $('modalBack').classList.add('show');
+  $('songQuery').value = '';
+  $('results').innerHTML = '<div class="empty" style="padding:30px 0">曲名を入れて検索してください</div>';
+  $('songQuery').focus();
+};
+function closeModal() {
+  $('modalBack').classList.remove('show');
+  stopPreview();
+}
+$('modalClose').onclick = closeModal;
+$('modalBack').addEventListener('click', e => { if (e.target === $('modalBack')) closeModal(); });
+$('manualAdd').onclick = () => {
+  closeModal();
+  openSong(createSong({}).id);
+  $('f-title').focus();
+};
+$('doSearch').onclick = doSearch;
+$('songQuery').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+
+/* iTunes Search API（JSONP — file://でも動く） */
+let jsonpCount = 0;
+function itunesSearch(term) {
+  return new Promise((resolve, reject) => {
+    const cb = '__itunesCb' + (++jsonpCount);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 10000);
+    function cleanup() { delete window[cb]; script.remove(); clearTimeout(timer); }
+    window[cb] = data => { cleanup(); resolve(data); };
+    script.src = 'https://itunes.apple.com/search?term=' + encodeURIComponent(term) +
+      '&country=JP&media=music&entity=song&limit=15&lang=ja_jp&callback=' + cb;
+    script.onerror = () => { cleanup(); reject(new Error('network')); };
+    document.body.appendChild(script);
+  });
+}
+
+async function doSearch() {
+  const q = $('songQuery').value.trim();
+  if (!q) return;
+  $('results').innerHTML = '<div class="empty" style="padding:30px 0">検索中…</div>';
+  try {
+    const data = await itunesSearch(q);
+    renderResults(data.results || []);
+  } catch (err) {
+    $('results').innerHTML = '<div class="empty" style="padding:30px 0">検索できませんでした。ネット接続を確認してください。<br>「手入力で追加」も使えます。</div>';
+  }
+}
+
+const previewAudio = new Audio();
+let playingBtn = null;
+function stopPreview() {
+  previewAudio.pause();
+  if (playingBtn) { playingBtn.textContent = '▶'; playingBtn = null; }
+}
+previewAudio.addEventListener('ended', stopPreview);
+
+function renderResults(items) {
+  const box = $('results');
+  box.innerHTML = '';
+  if (!items.length) {
+    box.innerHTML = '<div class="empty" style="padding:30px 0">見つかりませんでした。表記ゆれ（ひらがな/漢字）も試してみてください。</div>';
+    return;
+  }
+  items.forEach(it => {
+    const row = document.createElement('div');
+    row.className = 'result';
+    const img = document.createElement('img');
+    img.src = (it.artworkUrl100 || '').replace('100x100', '200x200');
+    img.alt = '';
+    const info = document.createElement('div');
+    info.className = 'r-info';
+    const t = document.createElement('div'); t.className = 'r-title'; t.textContent = it.trackName || '';
+    const a = document.createElement('div'); a.className = 'r-artist'; a.textContent = it.artistName || '';
+    const al = document.createElement('div'); al.className = 'r-album'; al.textContent = it.collectionName || '';
+    info.append(t, a, al);
+    row.append(img, info);
+    if (it.previewUrl) {
+      const pb = document.createElement('button');
+      pb.className = 'previewBtn'; pb.textContent = '▶'; pb.title = '試聴（30秒）';
+      pb.onclick = e => {
+        e.stopPropagation();
+        if (playingBtn === pb) { stopPreview(); return; }
+        stopPreview();
+        previewAudio.src = it.previewUrl;
+        previewAudio.play();
+        pb.textContent = '⏸'; playingBtn = pb;
+      };
+      row.appendChild(pb);
+    }
+    row.onclick = () => {
+      closeModal();
+      const s = createSong({ title: it.trackName, artist: it.artistName, artwork: img.src });
+      openSong(s.id);
+      toast('曲を追加しました。歌詞は「🔎」ボタンから探して貼り付けてください');
+    };
+    box.appendChild(row);
+  });
+}
+
+/* ---------- 歌詞さがし（外部サイトを開くだけ＝合法） ---------- */
+$('findLyricsUta').onclick = () => {
+  if (!current || !current.title) { toast('先に曲名を入れてください'); return; }
+  window.open('https://www.uta-net.com/search/?Aselect=2&Keyword=' + encodeURIComponent(current.title), '_blank');
+};
+$('findLyricsGoogle').onclick = () => {
+  if (!current || !current.title) { toast('先に曲名を入れてください'); return; }
+  const q = (current.title + ' ' + (current.artist || '') + ' 歌詞').trim();
+  window.open('https://www.google.com/search?q=' + encodeURIComponent(q), '_blank');
+};
+
+/* フィールド → モデル反映 */
+function bindField(id, apply) {
+  $(id).addEventListener('input', () => {
+    if (!current) return;
+    apply(current, $(id).value);
+    persistDebounced();
+  });
+}
+bindField('f-title', (s, v) => s.title = v);
+bindField('f-artist', (s, v) => s.artist = v);
+bindField('f-key', (s, v) => s.key = v);
+bindField('f-memo', (s, v) => s.memo = v);
+bindField('f-lastSung', (s, v) => s.lastSung = v);
+bindField('f-tags', (s, v) => s.tags = v.split(/[,、]/).map(t => t.trim()).filter(Boolean));
+$('f-status').addEventListener('change', () => {
+  if (current) { current.status = $('f-status').value; persistDebounced(); }
+});
+
+/* 星評価 */
+function drawRating(n) {
+  [...$('f-rating').children].forEach((el, i) => el.classList.toggle('on', i < n));
+}
+$('f-rating').addEventListener('click', e => {
+  if (e.target.tagName !== 'SPAN' || !current) return;
+  const idx = [...$('f-rating').children].indexOf(e.target) + 1;
+  current.rating = (current.rating === idx) ? idx - 1 : idx; // 同じ星をもう一度押すと1つ減らせる
+  drawRating(current.rating);
+  persistDebounced();
+});
+
+/* ---------- 歌詞編集・注釈 ---------- */
+const lyricsEl = $('lyrics');
+let editing = false;
+
+function setEditing(on) {
+  editing = on;
+  lyricsEl.contentEditable = on;
+  lyricsEl.classList.toggle('editing', on);
+  $('editLyricsBtn').textContent = on ? '✅ 編集を終了' : '✏️ 歌詞を編集';
+  if (on) { hidePopover(); lyricsEl.focus(); }
+}
+$('editLyricsBtn').onclick = () => setEditing(!editing);
+
+lyricsEl.addEventListener('input', () => {
+  if (current) { current.lyrics = lyricsEl.innerHTML; persistDebounced(); }
+});
+/* プレーンテキストとして貼り付け */
+lyricsEl.addEventListener('paste', e => {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData('text');
+  document.execCommand('insertText', false, text);
+});
+
+function saveLyrics() {
+  if (current) { current.lyrics = lyricsEl.innerHTML; persistDebounced(); }
+}
+
+/* 注釈ボタン */
+document.querySelectorAll('.annbtn').forEach(btn => {
+  btn.addEventListener('click', () => applyAnnotation(btn.dataset.type));
+});
+
+function selectionInLyrics() {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return null;
+  const range = sel.getRangeAt(0);
+  const node = range.commonAncestorContainer;
+  const el = node.nodeType === 1 ? node : node.parentElement;
+  return lyricsEl.contains(el) ? { sel, range } : null;
+}
+
+function applyAnnotation(type) {
+  const ctx = selectionInLyrics();
+
+  if (type === 'breath') {
+    // カーソル位置（または選択の先頭）にブレス記号を挿入
+    if (!ctx) { toast('歌詞の中で挿入したい位置をクリックしてから押してください'); return; }
+    const span = document.createElement('span');
+    span.className = 'breath'; span.dataset.type = 'breath'; span.textContent = '∨';
+    const r = ctx.range;
+    r.collapse(true);
+    r.insertNode(span);
+    ctx.sel.removeAllRanges();
+    saveLyrics();
+    return;
+  }
+
+  if (!ctx || ctx.sel.isCollapsed) {
+    toast('先に歌詞の文字をドラッグで選択してください');
+    return;
+  }
+
+  let noteText = '';
+  if (type === 'note') {
+    noteText = prompt('この箇所のメモを入力：');
+    if (noteText === null) return;
+  }
+
+  const span = document.createElement('span');
+  span.className = 'ann ann-' + type;
+  span.dataset.type = type;
+  if (noteText) span.dataset.note = noteText;
+
+  const range = ctx.range;
+  try {
+    range.surroundContents(span);
+  } catch (e) {
+    // 選択が既存の印をまたぐ場合
+    const frag = range.extractContents();
+    span.appendChild(frag);
+    range.insertNode(span);
+  }
+  ctx.sel.removeAllRanges();
+  saveLyrics();
+}
+
+/* 印クリック → ポップオーバー */
+lyricsEl.addEventListener('click', e => {
+  if (editing) return;
+  const target = e.target.closest('.ann, .breath');
+  if (!target) { hidePopover(); return; }
+  showPopover(target, e);
+});
+
+function showPopover(span, e) {
+  popTarget = span;
+  const type = span.dataset.type || 'note';
+  const pop = $('popover');
+  pop.querySelector('.ptype').textContent = '🎵 ' + (TYPE_LABEL[type] || type);
+  const noteEl = pop.querySelector('.pnote');
+  noteEl.textContent = span.dataset.note || '';
+  noteEl.style.display = span.dataset.note ? '' : 'none';
+  $('popEdit').style.display = (type === 'breath') ? 'none' : '';
+  pop.style.display = 'block';
+  const x = Math.min(e.pageX, document.documentElement.clientWidth - 280);
+  pop.style.left = Math.max(8, x) + 'px';
+  pop.style.top = (e.pageY + 12) + 'px';
+}
+function hidePopover() { $('popover').style.display = 'none'; popTarget = null; }
+
+$('popClose').onclick = hidePopover;
+$('popRemove').onclick = () => {
+  if (!popTarget) return;
+  if (popTarget.classList.contains('breath')) {
+    popTarget.remove();
+  } else {
+    // spanを外して中身だけ残す
+    const parent = popTarget.parentNode;
+    while (popTarget.firstChild) parent.insertBefore(popTarget.firstChild, popTarget);
+    popTarget.remove();
+    parent.normalize();
+  }
+  hidePopover();
+  saveLyrics();
+};
+$('popEdit').onclick = () => {
+  if (!popTarget) return;
+  const t = prompt('メモを編集：', popTarget.dataset.note || '');
+  if (t === null) return;
+  if (t) popTarget.dataset.note = t; else delete popTarget.dataset.note;
+  hidePopover();
+  saveLyrics();
+};
+document.addEventListener('click', e => {
+  if (!e.target.closest('#popover') && !e.target.closest('#lyrics')) hidePopover();
+});
+
+/* ---------- 検索・並び替え ---------- */
+['search', 'filterStatus', 'sortBy'].forEach(id => {
+  $(id).addEventListener('input', renderList);
+});
+
+/* ---------- 書き出し / 読み込み ---------- */
+$('menuExport').onclick = () => {
+  const blob = new Blob([JSON.stringify(songs, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  const d = new Date();
+  const stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+  a.href = URL.createObjectURL(blob);
+  a.download = `utarepa-backup-${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('バックアップを書き出しました');
+};
+$('menuImport').onclick = () => $('importFile').click();
+$('importFile').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!Array.isArray(data)) throw new Error();
+      if (!confirm(`${data.length}曲のデータを読み込みます。現在のデータは置き換えられます。よろしいですか？`)) return;
+      songs = data;
+      persist();
+      renderList();
+    } catch (err) {
+      alert('読み込めませんでした。うたレパの書き出しファイル(.json)を選んでください。');
+    }
+    e.target.value = '';
+  };
+  reader.readAsText(file);
+});
+
+/* ---------- toast ---------- */
+let toastTimer;
+function toast(msg) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 1800);
+}
+
+/* PWA: Service Worker登録（file://では無効） */
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+
+/* 初期表示 */
+persist(true);
+renderList();
+})();
+</script>
+</body>
+</html>
