@@ -74,7 +74,15 @@
   .card .artist { color: var(--sub); font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .card .artist .aname { min-width: 0; }
   .favmark { font-size: 13px; margin-left: auto; }
-  .tagboxes { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; margin-bottom: 4px; }
+  .tagwrap { position: relative; margin-bottom: 6px; }
+  #f-tagBtn { width: 100%; text-align: left; }
+  .tagboxes {
+    display: none; position: absolute; z-index: 30; left: 0; top: 100%; margin-top: 4px;
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.14); padding: 10px 12px;
+    flex-direction: column; gap: 7px; font-size: 14px; min-width: 170px;
+  }
+  .tagboxes.show { display: flex; }
   .tagboxes label { white-space: nowrap; cursor: pointer; }
   .card .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
   .badge { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: bold; }
@@ -138,6 +146,23 @@
   .annbtn[data-type=tame],     .palbtn[data-type=tame]     { border-color: #27ae60; color: #1d8046; }
   .annbtn[data-type=note],     .palbtn[data-type=note]     { border-color: #b8860b; color: #96700a; }
   .annbtn[data-type=breath],   .palbtn[data-type=breath]   { border-color: #2980b9; color: #2273a5; }
+
+  /* ---- 歌詞カード全画面 ---- */
+  #cardOverlay {
+    position: fixed; inset: 0; z-index: 70; background: var(--bg);
+    display: none; flex-direction: column;
+  }
+  #cardOverlay.show { display: flex; }
+  #cardOverlay .card-bar {
+    display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+    border-bottom: 1px solid var(--line); background: var(--card);
+  }
+  #cardTitle { font-weight: bold; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #cardLyrics {
+    flex: 1; overflow-y: auto; padding: 20px 22px 60px;
+    white-space: pre-wrap; font-size: 26px; line-height: 2.4;
+  }
+  #cardLyrics:empty::before { content: "歌詞がまだありません"; color: var(--sub); font-size: 16px; }
 
   /* ---- タップ式パレット（歌詞カード作り） ---- */
   #tapPalette {
@@ -326,7 +351,10 @@
       </div>
       <div class="field grow">
         <label>タグ</label>
-        <div id="f-tagboxes" class="tagboxes"></div>
+        <div class="tagwrap">
+          <button type="button" id="f-tagBtn">タグを選ぶ ▾</button>
+          <div id="f-tagboxes" class="tagboxes"></div>
+        </div>
         <input type="text" id="f-tags" placeholder="その他のタグ（カンマ区切り・自由入力）">
       </div>
     </div>
@@ -339,6 +367,7 @@
   <div class="panel">
     <div class="toolbar">
       <button id="editLyricsBtn">✏️ 歌詞を編集</button>
+      <button id="lyricsCardBtn">🎴 歌詞カード（全画面）</button>
       <span id="lyricsTools">
         <button id="findLyricsUta">🔎 歌ネットで歌詞を探す</button>
         <button id="findLyricsGoogle">🔎 Google検索</button>
@@ -378,6 +407,17 @@
     <button class="palbtn" data-t="breath" data-type="breath">∨ この字の前にブレス</button>
     <button class="palbtn" data-t="close">キャンセル</button>
   </div>
+</div>
+
+<div id="cardOverlay">
+  <div class="card-bar">
+    <span id="cardTitle"></span>
+    <span class="spacer"></span>
+    <button id="cardFontDown" title="文字を小さく">A−</button>
+    <button id="cardFontUp" title="文字を大きく">A＋</button>
+    <button id="cardClose">✕ 閉じる</button>
+  </div>
+  <div id="cardLyrics"></div>
 </div>
 
 <div id="modalBack">
@@ -515,6 +555,8 @@ function openSong(id) {
   document.querySelectorAll('#f-tagboxes input').forEach(cb => {
     cb.checked = (current.tags || []).includes(cb.dataset.tag);
   });
+  $('f-tagboxes').classList.remove('show');
+  updateTagBtn();
   renderFavBtn();
   $('f-key').value = current.key || '';
   $('f-tags').value = (current.tags || []).filter(t => !TAG_CHOICES.includes(t)).join(', ');
@@ -907,13 +949,24 @@ TAG_CHOICES.forEach(t => {
   cb.type = 'checkbox';
   cb.dataset.tag = t;
   cb.addEventListener('change', () => {
-    if (current) { current.tags = collectTags(); persistDebounced(); }
+    if (current) { current.tags = collectTags(); persistDebounced(); updateTagBtn(); }
   });
   lab.append(cb, ' ' + t);
   $('f-tagboxes').appendChild(lab);
 });
 $('f-tags').addEventListener('input', () => {
-  if (current) { current.tags = collectTags(); persistDebounced(); }
+  if (current) { current.tags = collectTags(); persistDebounced(); updateTagBtn(); }
+});
+function updateTagBtn() {
+  const chosen = current ? (current.tags || []).filter(t => TAG_CHOICES.includes(t)) : [];
+  $('f-tagBtn').textContent = (chosen.length ? chosen.join('・') : 'タグを選ぶ') + ' ▾';
+}
+$('f-tagBtn').onclick = e => {
+  e.stopPropagation();
+  $('f-tagboxes').classList.toggle('show');
+};
+document.addEventListener('click', e => {
+  if (!e.target.closest('.tagwrap')) $('f-tagboxes').classList.remove('show');
 });
 
 /* お気に入りON/OFF（詳細画面） */
@@ -953,6 +1006,27 @@ function setEditing(on) {
   if (on) { hidePopover(); hideTapPalette(); lyricsEl.focus(); }
 }
 $('editLyricsBtn').onclick = () => setEditing(!editing);
+
+/* 歌詞カード全画面表示（書き込んだ印もそのまま大きく表示） */
+let cardFont = parseInt(localStorage.getItem('utarepa.cardFont') || '26', 10);
+function applyCardFont() {
+  cardFont = Math.max(16, Math.min(48, cardFont));
+  $('cardLyrics').style.fontSize = cardFont + 'px';
+  localStorage.setItem('utarepa.cardFont', cardFont);
+}
+$('lyricsCardBtn').onclick = () => {
+  if (!current) return;
+  if (editing) saveLyrics();
+  setEditing(false);
+  $('cardTitle').textContent = (current.title || '（無題）') + (current.key ? '　key: ' + current.key : '');
+  // 表示中の歌詞DOM（印つき）をそのまま大きく表示
+  $('cardLyrics').innerHTML = lyricsEl.innerHTML || current.lyrics || '';
+  applyCardFont();
+  $('cardOverlay').classList.add('show');
+};
+$('cardClose').onclick = () => $('cardOverlay').classList.remove('show');
+$('cardFontUp').onclick = () => { cardFont += 3; applyCardFont(); };
+$('cardFontDown').onclick = () => { cardFont -= 3; applyCardFont(); };
 
 lyricsEl.addEventListener('input', () => {
   if (current) { current.lyrics = lyricsEl.innerHTML; persistDebounced(); }
