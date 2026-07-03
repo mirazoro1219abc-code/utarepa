@@ -74,6 +74,8 @@
   .card .artist { color: var(--sub); font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .card .artist .aname { min-width: 0; }
   .favmark { font-size: 13px; margin-left: auto; }
+  .tagboxes { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; margin-bottom: 4px; }
+  .tagboxes label { white-space: nowrap; cursor: pointer; }
   .card .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
   .badge { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: bold; }
   .badge.ok    { background: #e3f4e5; color: #2e7d43; }
@@ -254,9 +256,13 @@
     <input type="search" id="search" placeholder="曲名・アーティスト・タグで検索">
     <select id="filterStatus">
       <option value="all">すべて</option>
-      <option value="ok">歌える</option>
-      <option value="prac">練習中</option>
-      <option value="want">歌いたい</option>
+      <option value="盛り上がる">盛り上がる</option>
+      <option value="バラード">バラード</option>
+      <option value="バンド">バンド</option>
+      <option value="ボカロ">ボカロ</option>
+      <option value="アイドル">アイドル</option>
+      <option value="洋楽">洋楽</option>
+      <option value="練習中">練習中</option>
     </select>
     <select id="sortBy">
       <option value="added">追加順</option>
@@ -279,6 +285,7 @@
   <div class="detail-nav">
     <button id="backBtn">← 一覧に戻る</button>
     <span class="spacer"></span>
+    <button id="favBtn">☆ お気に入り</button>
     <button class="danger" id="deleteBtn">🗑 この曲を削除</button>
   </div>
 
@@ -294,14 +301,6 @@
       </div>
     </div>
     <div class="field-row">
-      <div class="field">
-        <label>ステータス</label>
-        <select id="f-status">
-          <option value="ok">✅ 歌える</option>
-          <option value="prac">🎯 練習中</option>
-          <option value="want">💭 歌いたい</option>
-        </select>
-      </div>
       <div class="field">
         <label>キー設定</label>
         <select id="f-key" style="width:120px">
@@ -326,8 +325,9 @@
         <div class="rating-widget" id="f-rating"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
       </div>
       <div class="field grow">
-        <label>タグ（カンマ区切り）</label>
-        <input type="text" id="f-tags" placeholder="バラード, 十八番, 高音キツい">
+        <label>タグ</label>
+        <div id="f-tagboxes" class="tagboxes"></div>
+        <input type="text" id="f-tags" placeholder="その他のタグ（カンマ区切り・自由入力）">
       </div>
     </div>
     <div class="field">
@@ -422,7 +422,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const STATUS_LABEL = { ok: '✅ 歌える', prac: '🎯 練習中', want: '💭 歌いたい' };
+const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', '練習中'];
 
 let songs = load();
 let current = null;        // 現在開いている曲オブジェクト
@@ -459,7 +459,7 @@ function renderList() {
   const sort = $('sortBy').value;
 
   let list = songs.filter(s => {
-    if (fs !== 'all' && s.status !== fs) return false;
+    if (fs !== 'all' && !(s.tags || []).includes(fs)) return false;
     if (!q) return true;
     const hay = (s.title + ' ' + s.artist + ' ' + (s.tags || []).join(' ')).toLowerCase();
     return hay.includes(q);
@@ -484,9 +484,7 @@ function renderList() {
     cb.type = 'checkbox'; cb.className = 'selbox'; cb.checked = selected.has(s.id);
     const title = document.createElement('span');
     title.className = 'title'; title.textContent = s.title || '（無題）';
-    const badge = document.createElement('span');
-    badge.className = 'badge ' + s.status; badge.textContent = STATUS_LABEL[s.status] || '';
-    titlerow.append(cb, title, badge);
+    titlerow.append(cb, title);
     if (s.fav) {
       const fav = document.createElement('span');
       fav.className = 'favmark'; fav.textContent = '⭐';
@@ -496,22 +494,13 @@ function renderList() {
     const artist = document.createElement('div');
     artist.className = 'artist';
     artist.innerHTML = `<span class="aname">${escapeHtml(s.artist || ' ')}</span>` + starsHtml(s.rating);
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.innerHTML = (s.key ? `<span class="keychip">key: ${escapeHtml(s.key)}</span>` : '');
-    (s.tags || []).forEach(t => {
-      const chip = document.createElement('span');
-      chip.className = 'tagchip'; chip.textContent = t;
-      meta.appendChild(chip);
-    });
-    card.append(titlerow, artist, meta);
+    card.append(titlerow, artist);
     grid.appendChild(card);
   });
   $('emptyMsg').hidden = list.length > 0;
 
-  const c = { ok: 0, prac: 0, want: 0 };
-  songs.forEach(s => c[s.status] !== undefined && c[s.status]++);
-  $('stats').textContent = `全${songs.length}曲｜歌える ${c.ok}・練習中 ${c.prac}・歌いたい ${c.want}`;
+  const favCount = songs.filter(s => s.fav).length;
+  $('stats').textContent = `全${songs.length}曲｜⭐${favCount}曲`;
 }
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -523,9 +512,12 @@ function openSong(id) {
   if (!current) return;
   $('f-title').value = current.title;
   $('f-artist').value = current.artist;
-  $('f-status').value = current.status;
+  document.querySelectorAll('#f-tagboxes input').forEach(cb => {
+    cb.checked = (current.tags || []).includes(cb.dataset.tag);
+  });
+  renderFavBtn();
   $('f-key').value = current.key || '';
-  $('f-tags').value = (current.tags || []).join(', ');
+  $('f-tags').value = (current.tags || []).filter(t => !TAG_CHOICES.includes(t)).join(', ');
   $('f-memo').value = current.memo || '';
   drawRating(current.rating);
   $('lyrics').innerHTML = current.lyrics || '';
@@ -600,14 +592,18 @@ $('bulkAdd').onclick = () => {
       </div>
       <textarea id="bulkText" style="width:100%;min-height:150px" placeholder="香水 / 瑛人&#10;Lemon / 米津玄師&#10;マリーゴールド"></textarea>
       <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;font-size:12px">
-        <label>ステータス
-          <select id="bulkStatus">
-            <option value="ok">✅ 歌える</option>
-            <option value="prac" selected>🎯 練習中</option>
-            <option value="want">💭 歌いたい</option>
+        <label>タグ
+          <select id="bulkTag">
+            <option value="">なし</option>
+            <option value="盛り上がる">盛り上がる</option>
+            <option value="バラード">バラード</option>
+            <option value="バンド">バンド</option>
+            <option value="ボカロ">ボカロ</option>
+            <option value="アイドル">アイドル</option>
+            <option value="洋楽">洋楽</option>
+            <option value="練習中">練習中</option>
           </select>
         </label>
-        <label>タグ <input type="text" id="bulkTag" placeholder="例: カラーシング" style="width:110px"></label>
         <button class="primary" id="bulkGo">追加する</button>
       </div>
       <div id="bulkProgress" style="font-size:12px;color:var(--sub);margin-top:6px"></div>
@@ -715,7 +711,6 @@ async function ocrImages(files) {
 async function runBulkAdd() {
   const lines = $('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) { toast('曲を入力してください'); return; }
-  const status = $('bulkStatus').value;
   const tag = $('bulkTag').value.trim();
   const lookup = $('bulkLookup').checked;
   $('bulkGo').disabled = true;
@@ -738,7 +733,6 @@ async function runBulkAdd() {
       } catch (e) { /* 照会に失敗しても入力のまま追加する */ }
     }
     const s = createSong({ title, artist });
-    s.status = status;
     if (tag) s.tags = [tag];
     added++;
   }
@@ -901,10 +895,38 @@ bindField('f-title', (s, v) => s.title = v);
 bindField('f-artist', (s, v) => s.artist = v);
 bindField('f-key', (s, v) => s.key = v);
 bindField('f-memo', (s, v) => s.memo = v);
-bindField('f-tags', (s, v) => s.tags = v.split(/[,、]/).map(t => t.trim()).filter(Boolean));
-$('f-status').addEventListener('change', () => {
-  if (current) { current.status = $('f-status').value; persistDebounced(); }
+/* タグ：チェックボックス（固定の選択肢）＋自由入力の合算 */
+function collectTags() {
+  const chosen = [...document.querySelectorAll('#f-tagboxes input:checked')].map(cb => cb.dataset.tag);
+  const custom = $('f-tags').value.split(/[,、]/).map(t => t.trim()).filter(Boolean).filter(t => !TAG_CHOICES.includes(t));
+  return chosen.concat(custom);
+}
+TAG_CHOICES.forEach(t => {
+  const lab = document.createElement('label');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.dataset.tag = t;
+  cb.addEventListener('change', () => {
+    if (current) { current.tags = collectTags(); persistDebounced(); }
+  });
+  lab.append(cb, ' ' + t);
+  $('f-tagboxes').appendChild(lab);
 });
+$('f-tags').addEventListener('input', () => {
+  if (current) { current.tags = collectTags(); persistDebounced(); }
+});
+
+/* お気に入りON/OFF（詳細画面） */
+function renderFavBtn() {
+  $('favBtn').textContent = current && current.fav ? '⭐ お気に入り中' : '☆ お気に入り';
+}
+$('favBtn').onclick = () => {
+  if (!current) return;
+  current.fav = !current.fav;
+  renderFavBtn();
+  persistDebounced();
+  toast(current.fav ? 'お気に入りにしました' : 'お気に入りを解除しました');
+};
 
 /* 星評価 */
 function drawRating(n) {
