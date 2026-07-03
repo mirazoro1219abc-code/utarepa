@@ -124,15 +124,25 @@
   .breath       { color: #2980b9; font-weight: bold; cursor: pointer; margin: 0 1px; }
 
   /* toolbar button colors matching */
-  .annbtn[data-type=shakuri]  { border-color: #e67e22; color: #b35c0e; }
-  .annbtn[data-type=fall]     { border-color: #3498db; color: #1f6da8; }
-  .annbtn[data-type=kobushi]  { border-color: #9b59b6; color: #7a3fa0; }
-  .annbtn[data-type=vibrato]  { border-color: #16a085; color: #0e7a63; }
-  .annbtn[data-type=falsetto] { border-color: #e84393; color: #c22a75; }
-  .annbtn[data-type=accent]   { border-color: #e74c3c; color: #c0392b; }
-  .annbtn[data-type=tame]     { border-color: #27ae60; color: #1d8046; }
-  .annbtn[data-type=note]     { border-color: #b8860b; color: #96700a; }
-  .annbtn[data-type=breath]   { border-color: #2980b9; color: #2273a5; }
+  .palbtn { font-size: 12px; padding: 4px 10px; border-radius: 999px; border-width: 2px; }
+  .annbtn[data-type=shakuri],  .palbtn[data-type=shakuri]  { border-color: #e67e22; color: #b35c0e; }
+  .annbtn[data-type=fall],     .palbtn[data-type=fall]     { border-color: #3498db; color: #1f6da8; }
+  .annbtn[data-type=kobushi],  .palbtn[data-type=kobushi]  { border-color: #9b59b6; color: #7a3fa0; }
+  .annbtn[data-type=vibrato],  .palbtn[data-type=vibrato]  { border-color: #16a085; color: #0e7a63; }
+  .annbtn[data-type=falsetto], .palbtn[data-type=falsetto] { border-color: #e84393; color: #c22a75; }
+  .annbtn[data-type=accent],   .palbtn[data-type=accent]   { border-color: #e74c3c; color: #c0392b; }
+  .annbtn[data-type=tame],     .palbtn[data-type=tame]     { border-color: #27ae60; color: #1d8046; }
+  .annbtn[data-type=note],     .palbtn[data-type=note]     { border-color: #b8860b; color: #96700a; }
+  .annbtn[data-type=breath],   .palbtn[data-type=breath]   { border-color: #2980b9; color: #2273a5; }
+
+  /* ---- タップ式パレット（歌詞カード作り） ---- */
+  #tapPalette {
+    position: absolute; z-index: 50; background: #fff; border: 1px solid var(--line);
+    border-radius: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.18); padding: 10px 12px;
+    max-width: 320px; display: none;
+  }
+  #tapPalette .ptype { font-weight: bold; font-size: 13px; margin-bottom: 8px; }
+  #tapPalette .palbtns { display: flex; gap: 6px; flex-wrap: wrap; }
 
   /* ---- 曲検索モーダル（デンモク風） ---- */
   #modalBack {
@@ -165,15 +175,31 @@
   }
   .mfoot .btns { display: flex; gap: 8px; }
 
-  /* ---- カードのジャケット表示 ---- */
-  .card { display: flex; gap: 12px; align-items: flex-start; }
-  .card .art {
-    width: 54px; height: 54px; border-radius: 10px; flex-shrink: 0;
-    background: #f1ebe1; object-fit: cover;
-    display: flex; align-items: center; justify-content: center; font-size: 22px;
+  /* ---- カード：曲名の横にステータス表示 ---- */
+  .card .titlerow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 2px; }
+  .card .titlerow .title { margin-bottom: 0; }
+
+  /* ---- 文字サイズ小（コンパクト表示） ---- */
+  body.compact .grid { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 8px; }
+  body.compact .card { padding: 7px 10px; }
+  body.compact .card .title { font-size: 13px; }
+  body.compact .card .artist { font-size: 11px; margin-bottom: 3px; }
+  body.compact .card .meta { font-size: 10px; gap: 5px; }
+  body.compact .stars { font-size: 11px; }
+  body.compact .badge { font-size: 9px; padding: 1px 6px; }
+  body.compact .tagchip { font-size: 9px; }
+
+  /* ---- 選択モード（一括削除） ---- */
+  .selbox { display: none; pointer-events: none; width: 16px; height: 16px; }
+  body.selecting .selbox { display: inline-block; }
+  .card.selected { outline: 3px solid var(--accent); }
+  #deleteBar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    background: #fff; border-top: 1px solid var(--line); padding: 10px 16px;
+    display: none; gap: 10px; align-items: center; justify-content: center;
+    box-shadow: 0 -4px 14px rgba(0,0,0,.1);
   }
-  .card .cbody { min-width: 0; flex: 1; }
-  #f-art { width: 72px; height: 72px; border-radius: 12px; background: #f1ebe1; object-fit: cover; }
+  body.selecting #deleteBar { display: flex; }
 
   /* ---- popover ---- */
   #popover {
@@ -207,8 +233,9 @@
     <h1>🎤 うたレパ<small>自分の歌レパートリー帳</small></h1>
     <span class="stats" id="stats"></span>
     <span class="spacer"></span>
-    <button id="menuExport" title="バックアップをJSONで保存">⬇ 書き出し</button>
-    <button id="menuImport" title="JSONバックアップを読み込み">⬆ 読み込み</button>
+    <button id="fontToggle" title="文字の大きさを2段階で切り替え。小さくするとたくさんの曲が一度に見られます">🔠 文字サイズ</button>
+    <button id="menuExport" title="全データをファイルに保存します。別の端末への移動や、万一の消失に備えるバックアップ用">💾 バックアップ保存</button>
+    <button id="menuImport" title="「バックアップ保存」で作ったファイルを読み込んでデータを復元します">📂 復元</button>
     <input type="file" id="importFile" accept=".json" hidden>
   </div>
   <div class="controls" id="listControls">
@@ -225,6 +252,7 @@
       <option value="title">曲名順</option>
       <option value="artist">アーティスト順</option>
     </select>
+    <button id="selectBtn">☑ 選択</button>
     <button class="primary" id="addSong">＋ 曲を追加</button>
   </div>
 </header>
@@ -243,7 +271,6 @@
 
   <div class="panel">
     <div class="field-row">
-      <img id="f-art" alt="" hidden>
       <div class="field grow">
         <label>曲名</label>
         <input type="text" id="f-title" placeholder="曲名">
@@ -299,11 +326,36 @@
       <button class="annbtn" data-type="breath">∨ ブレス挿入</button>
       <button id="findLyricsUta">🔎 歌ネットで歌詞を探す</button>
       <button id="findLyricsGoogle">🔎 Googleで歌詞検索</button>
-      <div class="hint">歌詞は「🔎」ボタンで公式歌詞サイトを開いて確認 →「✏️ 歌詞を編集」に自分で入力・貼り付けしてください（自分専用メモとしての利用）。文字をドラッグで選択 → テクニックのボタンで印がつき、印をクリックすると確認・解除できます。</div>
+      <div class="hint">
+        【歌詞カードの作り方】① 「🔎」で歌詞を確認 →「✏️ 歌詞を編集」に貼り付け ② 文字を<b>1回タップ</b>→出てくるパレットから印を選ぶだけ（ドラッグで範囲選択→上のボタンでもOK）③ 印をタップすると確認・解除。<br>
+        ボイトレ式のコツ：まず<b>ブレス（∨）を全部入れる</b>→アクセント→しゃくり・フォールの順に書き込むと作りやすいです。
+      </div>
     </div>
     <div id="lyrics"></div>
   </div>
 </section>
+
+<div id="deleteBar">
+  <span id="selCount">0曲選択中</span>
+  <button class="danger" id="deleteSelected">🗑 選択した曲を削除</button>
+  <button id="cancelSelect">キャンセル</button>
+</div>
+
+<div id="tapPalette">
+  <div class="ptype">「<span id="tapChar"></span>」に印を付ける</div>
+  <div class="palbtns">
+    <button class="palbtn" data-t="shakuri" data-type="shakuri">しゃくり</button>
+    <button class="palbtn" data-t="fall" data-type="fall">フォール</button>
+    <button class="palbtn" data-t="kobushi" data-type="kobushi">こぶし</button>
+    <button class="palbtn" data-t="vibrato" data-type="vibrato">ビブラート</button>
+    <button class="palbtn" data-t="falsetto" data-type="falsetto">ファルセット</button>
+    <button class="palbtn" data-t="accent" data-type="accent">アクセント</button>
+    <button class="palbtn" data-t="tame" data-type="tame">ため</button>
+    <button class="palbtn" data-t="note" data-type="note">📝 メモ</button>
+    <button class="palbtn" data-t="breath" data-type="breath">∨ この字の前にブレス</button>
+    <button class="palbtn" data-t="close">キャンセル</button>
+  </div>
+</div>
 
 <div id="modalBack">
   <div id="searchModal">
@@ -358,9 +410,10 @@ let saveTimer = null;
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) return JSON.parse(raw);
+    // 以前入っていた使い方デモのサンプル曲は自動的に取り除く
+    if (raw) return JSON.parse(raw).filter(s => !String(s.id).startsWith('sample-'));
   } catch (e) {}
-  return [sampleSong()];
+  return [];
 }
 function persist(silent) {
   localStorage.setItem(STORE_KEY, JSON.stringify(songs));
@@ -369,17 +422,6 @@ function persist(silent) {
 function persistDebounced() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => persist(true), 600);
-}
-function sampleSong() {
-  return {
-    id: 'sample-' + Date.now(),
-    title: 'サンプル曲（使い方デモ）',
-    artist: 'うたレパ',
-    status: 'prac', key: '原キー', rating: 3,
-    tags: ['デモ'], lastSung: '', memo: 'この曲は削除してOK。歌詞の印をクリックすると解除できます。',
-    lyrics: 'ここは<span class="ann ann-shakuri" data-type="shakuri">しゃくり</span>で入る<span class="breath" data-type="breath">∨</span>\nサビの高音は<span class="ann ann-falsetto" data-type="falsetto">ファルセット</span>に切り替え\n語尾は<span class="ann ann-fall" data-type="fall">フォール</span>で落として<span class="ann ann-vibrato" data-type="vibrato">ビブラート</span>\nここを<span class="ann ann-accent" data-type="accent">強く！</span>そして<span class="ann ann-tame" data-type="tame">ためて</span>から\n<span class="ann ann-note" data-type="note" data-note="2番はここで転調するので注意">メモ付きの箇所</span>はクリックで内容が見れます',
-    created: Date.now()
-  };
 }
 
 /* ---------- 一覧表示 ---------- */
@@ -409,32 +451,31 @@ function renderList() {
   grid.innerHTML = '';
   list.forEach(s => {
     const card = document.createElement('div');
-    card.className = 'card';
-    card.onclick = () => openSong(s.id);
+    card.className = 'card' + (selected.has(s.id) ? ' selected' : '');
+    card.onclick = () => { selectMode ? toggleSelect(s.id) : openSong(s.id); };
 
-    const art = document.createElement(s.artwork ? 'img' : 'div');
-    art.className = 'art';
-    if (s.artwork) { art.src = s.artwork; art.alt = ''; }
-    else art.textContent = '🎵';
-
-    const title = document.createElement('div');
+    const titlerow = document.createElement('div');
+    titlerow.className = 'titlerow';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'selbox'; cb.checked = selected.has(s.id);
+    const title = document.createElement('span');
     title.className = 'title'; title.textContent = s.title || '（無題）';
+    const badge = document.createElement('span');
+    badge.className = 'badge ' + s.status; badge.textContent = STATUS_LABEL[s.status] || '';
+    titlerow.append(cb, title, badge);
+
     const artist = document.createElement('div');
     artist.className = 'artist'; artist.textContent = s.artist || ' ';
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.innerHTML = `<span class="badge ${s.status}">${STATUS_LABEL[s.status] || ''}</span>` +
-      starsHtml(s.rating) +
+    meta.innerHTML = starsHtml(s.rating) +
       (s.key ? `<span class="keychip">key: ${escapeHtml(s.key)}</span>` : '');
     (s.tags || []).forEach(t => {
       const chip = document.createElement('span');
       chip.className = 'tagchip'; chip.textContent = t;
       meta.appendChild(chip);
     });
-    const body = document.createElement('div');
-    body.className = 'cbody';
-    body.append(title, artist, meta);
-    card.append(art, body);
+    card.append(titlerow, artist, meta);
     grid.appendChild(card);
   });
   $('emptyMsg').hidden = list.length > 0;
@@ -458,8 +499,6 @@ function openSong(id) {
   $('f-tags').value = (current.tags || []).join(', ');
   $('f-lastSung').value = current.lastSung || '';
   $('f-memo').value = current.memo || '';
-  $('f-art').hidden = !current.artwork;
-  if (current.artwork) $('f-art').src = current.artwork;
   drawRating(current.rating);
   $('lyrics').innerHTML = current.lyrics || '';
   setEditing(false);
@@ -489,7 +528,7 @@ function createSong(data) {
   const s = {
     id: 'song-' + Date.now() + '-' + Math.floor(Math.random() * 1e4),
     title: data.title || '', artist: data.artist || '', status: 'prac', key: '', rating: 0,
-    tags: [], lastSung: '', memo: '', lyrics: '', artwork: data.artwork || '', created: Date.now()
+    tags: [], lastSung: '', memo: '', lyrics: '', created: Date.now()
   };
   songs.push(s);
   persist(true);
@@ -538,7 +577,7 @@ $('bulkAdd').onclick = () => {
           </select>
         </label>
         <label>タグ <input type="text" id="bulkTag" placeholder="例: カラーシング" style="width:110px"></label>
-        <label><input type="checkbox" id="bulkLookup" checked> ジャケット等を自動補完</label>
+        <label><input type="checkbox" id="bulkLookup"> 曲名・アーティスト表記を自動補正（1曲3秒ほど）</label>
         <button class="primary" id="bulkGo">追加する</button>
       </div>
       <div id="bulkProgress" style="font-size:12px;color:var(--sub);margin-top:6px"></div>
@@ -566,11 +605,43 @@ function loadTesseract() {
 async function getOcrWorker(onProgress) {
   await loadTesseract();
   if (!ocrWorkerPromise) {
-    ocrWorkerPromise = Tesseract.createWorker('jpn', 1, {
-      logger: m => onProgress && onProgress(m)
-    });
+    ocrWorkerPromise = (async () => {
+      // 日本語＋英語（英語タイトルの曲の認識精度を上げる）
+      const w = await Tesseract.createWorker('jpn+eng', 1, {
+        logger: m => onProgress && onProgress(m)
+      });
+      // スクショは「1列のリスト」なのでそれ向けのモードにする
+      await w.setParameters({ tessedit_pageseg_mode: '4', preserve_interword_spaces: '1' });
+      return w;
+    })();
   }
   return ocrWorkerPromise;
+}
+
+/* 読み取り前の画像補正：拡大・グレースケール・コントラスト強調・ダーク画面の反転 */
+async function preprocessImage(file) {
+  const img = await createImageBitmap(file);
+  const scale = Math.max(1, 1500 / img.width);
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * scale);
+  canvas.height = Math.round(img.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const p = d.data;
+  let sum = 0, n = 0;
+  for (let i = 0; i < p.length; i += 40) { sum += p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114; n++; }
+  const invert = (sum / n) < 128; // 暗い背景（ダークモードの画面）なら白黒反転
+  for (let i = 0; i < p.length; i += 4) {
+    let g = p[i] * 0.299 + p[i + 1] * 0.587 + p[i + 2] * 0.114;
+    if (invert) g = 255 - g;
+    g = Math.min(255, Math.max(0, (g - 128) * 1.5 + 128));
+    p[i] = p[i + 1] = p[i + 2] = g;
+  }
+  ctx.putImageData(d, 0, 0);
+  return canvas;
 }
 async function ocrImages(files) {
   const prog = $('bulkProgress');
@@ -586,7 +657,8 @@ async function ocrImages(files) {
     let allLines = [];
     for (let i = 0; i < files.length; i++) {
       prog.textContent = `${i + 1}/${files.length}枚目を読み取り中…`;
-      const { data } = await worker.recognize(files[i]);
+      const canvas = await preprocessImage(files[i]);
+      const { data } = await worker.recognize(canvas);
       const lines = data.text.split('\n')
         .map(l => l.replace(/\s+/g, ' ').trim())
         .map(l => l.replace(/(?<=[　-鿿぀-ヿ＀-￯])\s+(?=[　-鿿぀-ヿ＀-￯])/g, ''))
@@ -622,7 +694,6 @@ async function runBulkAdd() {
     const parts = lines[i].split(/[\/／\t]/).map(s => s.trim()).filter(Boolean);
     let title = parts[0] || '';
     let artist = parts[1] || '';
-    let artwork = '';
     if (lookup && title) {
       $('bulkProgress').textContent = `${i + 1}/${lines.length}曲目を照会中… ${title}`;
       try {
@@ -631,12 +702,12 @@ async function runBulkAdd() {
         if (hit) {
           title = hit.trackName || title;
           artist = hit.artistName || artist;
-          artwork = (hit.artworkUrl100 || '').replace('100x100', '200x200');
         }
-        await new Promise(r => setTimeout(r, 400));
+        // iTunes検索の回数制限（約20回/分）を超えないよう間隔をあける
+        await new Promise(r => setTimeout(r, 3200));
       } catch (e) { /* 照会に失敗しても入力のまま追加する */ }
     }
-    const s = createSong({ title, artist, artwork });
+    const s = createSong({ title, artist });
     s.status = status;
     if (tag) s.tags = [tag];
     added++;
@@ -649,17 +720,36 @@ async function runBulkAdd() {
 $('doSearch').onclick = doSearch;
 $('songQuery').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
-/* iTunes Search API（JSONP — file://でも動く） */
+/* iTunes Search API — fetch優先、失敗時はJSONPにフォールバック */
+function normalizeTerm(t) {
+  return t.replace(/　/g, ' ').replace(/\s+/g, ' ').trim();
+}
+function itunesUrl(term, cb) {
+  return 'https://itunes.apple.com/search?term=' + encodeURIComponent(normalizeTerm(term)) +
+    '&country=JP&media=music&entity=song&limit=15&lang=ja_jp' + (cb ? '&callback=' + cb : '');
+}
+async function itunesSearch(term) {
+  try {
+    const opts = {};
+    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(12000);
+    const res = await fetch(itunesUrl(term), opts);
+    if (res.ok) return await res.json();
+    if (res.status === 403 || res.status === 429) { const e = new Error('rate'); e.rate = true; throw e; }
+    throw new Error('http ' + res.status);
+  } catch (e) {
+    if (e.rate) throw e;
+    return itunesSearchJsonp(term);
+  }
+}
 let jsonpCount = 0;
-function itunesSearch(term) {
+function itunesSearchJsonp(term) {
   return new Promise((resolve, reject) => {
     const cb = '__itunesCb' + (++jsonpCount);
     const script = document.createElement('script');
-    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 10000);
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 12000);
     function cleanup() { delete window[cb]; script.remove(); clearTimeout(timer); }
     window[cb] = data => { cleanup(); resolve(data); };
-    script.src = 'https://itunes.apple.com/search?term=' + encodeURIComponent(term) +
-      '&country=JP&media=music&entity=song&limit=15&lang=ja_jp&callback=' + cb;
+    script.src = itunesUrl(term, cb);
     script.onerror = () => { cleanup(); reject(new Error('network')); };
     document.body.appendChild(script);
   });
@@ -673,7 +763,9 @@ async function doSearch() {
     const data = await itunesSearch(q);
     renderResults(data.results || []);
   } catch (err) {
-    $('results').innerHTML = '<div class="empty" style="padding:30px 0">検索できませんでした。ネット接続を確認してください。<br>「手入力で追加」も使えます。</div>';
+    $('results').innerHTML = err.rate
+      ? '<div class="empty" style="padding:30px 0">検索が混み合っています（回数制限）。<br>1〜2分待ってからもう一度お試しください。</div>'
+      : '<div class="empty" style="padding:30px 0">検索できませんでした。ネット接続を確認してください。<br>「手入力で追加」も使えます。</div>';
   }
 }
 
@@ -689,7 +781,7 @@ function renderResults(items) {
   const box = $('results');
   box.innerHTML = '';
   if (!items.length) {
-    box.innerHTML = '<div class="empty" style="padding:30px 0">見つかりませんでした。表記ゆれ（ひらがな/漢字）も試してみてください。</div>';
+    box.innerHTML = '<div class="empty" style="padding:30px 0">見つかりませんでした。<br>曲名だけで検索する／ひらがな・カタカナ・漢字の表記を変える、を試してみてください。<br>それでも無い曲は「手入力で追加」で登録できます。</div>';
     return;
   }
   items.forEach(it => {
@@ -720,7 +812,7 @@ function renderResults(items) {
     }
     row.onclick = () => {
       closeModal();
-      const s = createSong({ title: it.trackName, artist: it.artistName, artwork: img.src });
+      const s = createSong({ title: it.trackName, artist: it.artistName });
       openSong(s.id);
       toast('曲を追加しました。歌詞は「🔎」ボタンから探して貼り付けてください');
     };
@@ -859,8 +951,65 @@ function applyAnnotation(type) {
 lyricsEl.addEventListener('click', e => {
   if (editing) return;
   const target = e.target.closest('.ann, .breath');
-  if (!target) { hidePopover(); return; }
-  showPopover(target, e);
+  if (target) { hideTapPalette(); showPopover(target, e); return; }
+  hidePopover();
+  // ドラッグで範囲選択しているときはタップ扱いにしない（上のボタンで印を付ける）
+  const sel = window.getSelection();
+  if (sel && !sel.isCollapsed) { hideTapPalette(); return; }
+  // 文字を1タップ → その文字に印を付けるパレットを出す
+  let node, offset;
+  if (document.caretRangeFromPoint) {
+    const r = document.caretRangeFromPoint(e.clientX, e.clientY);
+    if (r) { node = r.startContainer; offset = r.startOffset; }
+  } else if (document.caretPositionFromPoint) {
+    const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
+    if (pos) { node = pos.offsetNode; offset = pos.offset; }
+  }
+  if (!node || node.nodeType !== 3 || !lyricsEl.contains(node)) { hideTapPalette(); return; }
+  let start = Math.min(offset, node.length - 1);
+  if (start < 0) { hideTapPalette(); return; }
+  const ch = node.textContent[start];
+  if (!ch || /\s/.test(ch)) { hideTapPalette(); return; }
+  tapTarget = { node, start };
+  $('tapChar').textContent = ch;
+  const pal = $('tapPalette');
+  pal.style.display = 'block';
+  const x = Math.min(e.pageX, document.documentElement.clientWidth - 330);
+  pal.style.left = Math.max(8, x) + 'px';
+  pal.style.top = (e.pageY + 14) + 'px';
+});
+
+/* タップパレット（歌詞カード作り） */
+let tapTarget = null;
+function hideTapPalette() { $('tapPalette').style.display = 'none'; tapTarget = null; }
+document.querySelectorAll('#tapPalette .palbtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = btn.dataset.t;
+    if (t === 'close' || !tapTarget) { hideTapPalette(); return; }
+    const { node, start } = tapTarget;
+    const range = document.createRange();
+    if (t === 'breath') {
+      range.setStart(node, start);
+      range.collapse(true);
+      const span = document.createElement('span');
+      span.className = 'breath'; span.dataset.type = 'breath'; span.textContent = '∨';
+      range.insertNode(span);
+    } else {
+      let noteText = '';
+      if (t === 'note') {
+        noteText = prompt('この箇所のメモを入力：');
+        if (noteText === null) { hideTapPalette(); return; }
+      }
+      range.setStart(node, start);
+      range.setEnd(node, Math.min(start + 1, node.length));
+      const span = document.createElement('span');
+      span.className = 'ann ann-' + t; span.dataset.type = t;
+      if (noteText) span.dataset.note = noteText;
+      try { range.surroundContents(span); } catch (err) {}
+    }
+    hideTapPalette();
+    saveLyrics();
+  });
 });
 
 function showPopover(span, e) {
@@ -904,6 +1053,7 @@ $('popEdit').onclick = () => {
 };
 document.addEventListener('click', e => {
   if (!e.target.closest('#popover') && !e.target.closest('#lyrics')) hidePopover();
+  if (!e.target.closest('#tapPalette') && !e.target.closest('#lyrics')) hideTapPalette();
 });
 
 /* ---------- 検索・並び替え ---------- */
@@ -911,7 +1061,7 @@ document.addEventListener('click', e => {
   $(id).addEventListener('input', renderList);
 });
 
-/* ---------- 書き出し / 読み込み ---------- */
+/* ---------- バックアップ保存 / 復元 ---------- */
 $('menuExport').onclick = () => {
   const blob = new Blob([JSON.stringify(songs, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
@@ -921,7 +1071,7 @@ $('menuExport').onclick = () => {
   a.download = `utarepa-backup-${stamp}.json`;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast('バックアップを書き出しました');
+  toast('バックアップファイルを保存しました。別の端末では「📂 復元」で読み込めます');
 };
 $('menuImport').onclick = () => $('importFile').click();
 $('importFile').addEventListener('change', e => {
@@ -932,12 +1082,12 @@ $('importFile').addEventListener('change', e => {
     try {
       const data = JSON.parse(reader.result);
       if (!Array.isArray(data)) throw new Error();
-      if (!confirm(`${data.length}曲のデータを読み込みます。現在のデータは置き換えられます。よろしいですか？`)) return;
+      if (!confirm(`${data.length}曲のデータを読み込みます。この端末の現在のデータは置き換えられます。よろしいですか？`)) return;
       songs = data;
       persist();
       renderList();
     } catch (err) {
-      alert('読み込めませんでした。うたレパの書き出しファイル(.json)を選んでください。');
+      alert('読み込めませんでした。「💾 バックアップ保存」で作ったファイル(.json)を選んでください。');
     }
     e.target.value = '';
   };
@@ -958,6 +1108,41 @@ function toast(msg) {
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
 }
+
+/* ---------- 選択モード（一括削除） ---------- */
+let selectMode = false;
+const selected = new Set();
+function setSelectMode(on) {
+  selectMode = on;
+  if (!on) selected.clear();
+  document.body.classList.toggle('selecting', on);
+  $('selectBtn').textContent = on ? '☑ 選択中' : '☑ 選択';
+  updateSelCount();
+  renderList();
+}
+function toggleSelect(id) {
+  selected.has(id) ? selected.delete(id) : selected.add(id);
+  updateSelCount();
+  renderList();
+}
+function updateSelCount() { $('selCount').textContent = selected.size + '曲選択中'; }
+$('selectBtn').onclick = () => setSelectMode(!selectMode);
+$('cancelSelect').onclick = () => setSelectMode(false);
+$('deleteSelected').onclick = () => {
+  if (!selected.size) { toast('削除する曲をタップして選んでください'); return; }
+  if (!confirm(selected.size + '曲を削除します。よろしいですか？')) return;
+  songs = songs.filter(s => !selected.has(s.id));
+  persist();
+  setSelectMode(false);
+};
+
+/* ---------- 文字サイズ切り替え（標準⇔小） ---------- */
+if (localStorage.getItem('utarepa.compact') === '1') document.body.classList.add('compact');
+$('fontToggle').onclick = () => {
+  const on = document.body.classList.toggle('compact');
+  localStorage.setItem('utarepa.compact', on ? '1' : '0');
+  toast(on ? '文字サイズ：小（たくさん表示）' : '文字サイズ：標準');
+};
 
 /* 初期表示 */
 persist(true);

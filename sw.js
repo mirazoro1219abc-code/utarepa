@@ -1,4 +1,4 @@
-const CACHE = 'utarepa-v3';
+const CACHE = 'utarepa-v4';
 const ASSETS = [
   './',
   './index.html',
