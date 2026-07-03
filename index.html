@@ -71,7 +71,9 @@
   }
   .card:hover { transform: translateY(-2px); box-shadow: 0 6px 18px rgba(60,50,40,.13); }
   .card .title { font-weight: bold; font-size: 16px; margin-bottom: 2px; }
-  .card .artist { color: var(--sub); font-size: 13px; margin-bottom: 8px; }
+  .card .artist { color: var(--sub); font-size: 13px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card .artist .aname { min-width: 0; }
+  .favmark { font-size: 13px; margin-left: auto; }
   .card .meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
   .badge { padding: 2px 9px; border-radius: 999px; font-size: 11px; font-weight: bold; }
   .badge.ok    { background: #e3f4e5; color: #2e7d43; }
@@ -229,7 +231,8 @@
     .stats { font-size: 10px; }
     .controls { gap: 5px; margin-top: 5px; }
     button { padding: 4px 9px; font-size: 12px; border-radius: 7px; }
-    input[type=search], select, input[type=text], input[type=date] { padding: 4px 8px; font-size: 12px; }
+    /* iOSで入力欄タップ時に画面が勝手に拡大しないよう16px以上にする */
+    input[type=search], select, input[type=text], input[type=date], textarea { padding: 5px 8px; font-size: 16px; }
     .grid { gap: 9px; }
     .card { padding: 10px 12px; }
   }
@@ -257,6 +260,7 @@
     </select>
     <select id="sortBy">
       <option value="added">追加順</option>
+      <option value="fav">お気に入り順</option>
       <option value="rating">評価が高い順</option>
       <option value="title">曲名順</option>
       <option value="artist">アーティスト順</option>
@@ -300,7 +304,22 @@
       </div>
       <div class="field">
         <label>キー設定</label>
-        <input type="text" id="f-key" placeholder="原キー / -2 など" style="width:120px">
+        <select id="f-key" style="width:120px">
+          <option value="">未設定</option>
+          <option value="原キー">原キー</option>
+          <option value="+6">+6</option>
+          <option value="+5">+5</option>
+          <option value="+4">+4</option>
+          <option value="+3">+3</option>
+          <option value="+2">+2</option>
+          <option value="+1">+1</option>
+          <option value="-1">-1</option>
+          <option value="-2">-2</option>
+          <option value="-3">-3</option>
+          <option value="-4">-4</option>
+          <option value="-5">-5</option>
+          <option value="-6">-6</option>
+        </select>
       </div>
       <div class="field">
         <label>自己評価</label>
@@ -340,7 +359,8 @@
 
 <div id="deleteBar">
   <span id="selCount">0曲選択中</span>
-  <button class="danger" id="deleteSelected">🗑 選択した曲を削除</button>
+  <button id="favSelected">⭐ お気に入り</button>
+  <button class="danger" id="deleteSelected">🗑 削除</button>
   <button id="cancelSelect">キャンセル</button>
 </div>
 
@@ -445,7 +465,8 @@ function renderList() {
     return hay.includes(q);
   });
   const coll = new Intl.Collator('ja');
-  if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
+  if (sort === 'fav') list.sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || b.created - a.created);
+  else if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
   else if (sort === 'title') list.sort((a, b) => coll.compare(a.title, b.title));
   else if (sort === 'artist') list.sort((a, b) => coll.compare(a.artist, b.artist));
   else list.sort((a, b) => b.created - a.created);
@@ -466,13 +487,18 @@ function renderList() {
     const badge = document.createElement('span');
     badge.className = 'badge ' + s.status; badge.textContent = STATUS_LABEL[s.status] || '';
     titlerow.append(cb, title, badge);
+    if (s.fav) {
+      const fav = document.createElement('span');
+      fav.className = 'favmark'; fav.textContent = '⭐';
+      titlerow.append(fav);
+    }
 
     const artist = document.createElement('div');
-    artist.className = 'artist'; artist.textContent = s.artist || ' ';
+    artist.className = 'artist';
+    artist.innerHTML = `<span class="aname">${escapeHtml(s.artist || ' ')}</span>` + starsHtml(s.rating);
     const meta = document.createElement('div');
     meta.className = 'meta';
-    meta.innerHTML = starsHtml(s.rating) +
-      (s.key ? `<span class="keychip">key: ${escapeHtml(s.key)}</span>` : '');
+    meta.innerHTML = (s.key ? `<span class="keychip">key: ${escapeHtml(s.key)}</span>` : '');
     (s.tags || []).forEach(t => {
       const chip = document.createElement('span');
       chip.className = 'tagchip'; chip.textContent = t;
@@ -530,7 +556,7 @@ function createSong(data) {
   const s = {
     id: 'song-' + Date.now() + '-' + Math.floor(Math.random() * 1e4),
     title: data.title || '', artist: data.artist || '', status: 'prac', key: '', rating: 0,
-    tags: [], lastSung: '', memo: '', lyrics: '', created: Date.now()
+    tags: [], fav: false, memo: '', lyrics: '', created: Date.now()
   };
   songs.push(s);
   persist(true);
@@ -564,10 +590,13 @@ $('bulkAdd').onclick = () => {
         1行に1曲、「曲名 / アーティスト」の形式で貼り付け（アーティスト省略OK）。<br>
         カラーシング等のレパートリーは、画面のスクショから読み取るか、曲名リストを貼り付けてください。
       </div>
-      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap;font-size:12px">
+      <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;font-size:12px">
+        <label><input type="checkbox" id="bulkPair"> 曲名の次の行がアーティスト（2行で1曲）</label>
+        <label><input type="checkbox" id="bulkLookup"> 曲名・アーティスト表記を自動補正（1曲3秒ほど）</label>
+      </div>
+      <div style="margin-bottom:8px">
         <button id="bulkImgBtn">📷 スクショから読み取り</button>
         <input type="file" id="bulkImg" accept="image/*" multiple hidden>
-        <label><input type="checkbox" id="bulkPair"> 曲名の次の行がアーティスト（2行で1曲）</label>
       </div>
       <textarea id="bulkText" style="width:100%;min-height:150px" placeholder="香水 / 瑛人&#10;Lemon / 米津玄師&#10;マリーゴールド"></textarea>
       <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap;font-size:12px">
@@ -579,7 +608,6 @@ $('bulkAdd').onclick = () => {
           </select>
         </label>
         <label>タグ <input type="text" id="bulkTag" placeholder="例: カラーシング" style="width:110px"></label>
-        <label><input type="checkbox" id="bulkLookup"> 曲名・アーティスト表記を自動補正（1曲3秒ほど）</label>
         <button class="primary" id="bulkGo">追加する</button>
       </div>
       <div id="bulkProgress" style="font-size:12px;color:var(--sub);margin-top:6px"></div>
@@ -1163,6 +1191,16 @@ $('deleteSelected').onclick = () => {
   if (!confirm(selected.size + '曲を削除します。よろしいですか？')) return;
   songs = songs.filter(s => !selected.has(s.id));
   persist();
+  setSelectMode(false);
+};
+$('favSelected').onclick = () => {
+  if (!selected.size) { toast('お気に入りにする曲をタップして選んでください'); return; }
+  // 選んだ曲が全部お気に入りなら解除、そうでなければお気に入りに設定
+  const sel = songs.filter(s => selected.has(s.id));
+  const makeFav = !sel.every(s => s.fav);
+  sel.forEach(s => s.fav = makeFav);
+  persist(true);
+  toast(makeFav ? selected.size + '曲をお気に入りにしました' : 'お気に入りを解除しました');
   setSelectMode(false);
 };
 
