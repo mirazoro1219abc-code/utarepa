@@ -36,14 +36,13 @@
     background: rgba(250,247,242,.92);
     backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
-    padding: 14px 20px 10px;
+    padding: 8px 14px 8px;
   }
-  .header-top { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-  h1 { font-size: 20px; margin: 0; letter-spacing: .5px; }
-  h1 small { font-size: 12px; color: var(--sub); font-weight: normal; margin-left: 8px; }
+  .header-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  h1 { font-size: 19px; margin: 0; letter-spacing: .5px; }
   .stats { font-size: 12px; color: var(--sub); }
   .spacer { flex: 1; }
-  .controls { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center; }
+  .controls { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
   input[type=search], select, input[type=text], input[type=date], textarea {
     font: inherit; color: var(--ink);
     border: 1px solid var(--line); border-radius: 8px;
@@ -103,7 +102,8 @@
 
   /* ---- lyrics & annotations ---- */
   .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
-  .toolbar .hint { font-size: 11px; color: var(--sub); width: 100%; }
+  #lyricsTools { display: none; }
+  #lyricsTools.show { display: contents; }
   .annbtn { font-size: 12px; padding: 4px 10px; border-radius: 999px; border-width: 2px; }
   #lyrics {
     min-height: 220px; white-space: pre-wrap; font-size: 16px; line-height: 2.2;
@@ -221,8 +221,17 @@
   #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
   @media (max-width: 600px) {
-    main, #detailView { padding: 12px; }
-    input[type=search] { min-width: 120px; }
+    main, #detailView { padding: 10px; }
+    input[type=search] { min-width: 110px; }
+    header { padding: 6px 10px 6px; }
+    .header-top { gap: 7px; }
+    h1 { font-size: 16px; }
+    .stats { font-size: 10px; }
+    .controls { gap: 5px; margin-top: 5px; }
+    button { padding: 4px 9px; font-size: 12px; border-radius: 7px; }
+    input[type=search], select, input[type=text], input[type=date] { padding: 4px 8px; font-size: 12px; }
+    .grid { gap: 9px; }
+    .card { padding: 10px 12px; }
   }
 </style>
 </head>
@@ -230,12 +239,12 @@
 
 <header>
   <div class="header-top">
-    <h1>🎤 うたレパ<small>自分の歌レパートリー帳</small></h1>
+    <h1>🎤 うたレパ</h1>
     <span class="stats" id="stats"></span>
     <span class="spacer"></span>
-    <button id="fontToggle" title="文字の大きさを2段階で切り替え。小さくするとたくさんの曲が一度に見られます">🔠 文字サイズ</button>
-    <button id="menuExport" title="全データをファイルに保存します。別の端末への移動や、万一の消失に備えるバックアップ用">💾 バックアップ保存</button>
-    <button id="menuImport" title="「バックアップ保存」で作ったファイルを読み込んでデータを復元します">📂 復元</button>
+    <button id="fontToggle" title="文字の大きさを2段階で切り替え。小さくするとたくさんの曲が一度に見られます">文字サイズ</button>
+    <button id="menuExport" title="全データをファイルに保存します。別の端末への移動や、万一の消失に備えるバックアップ用">バックアップ</button>
+    <button id="menuImport" title="「バックアップ」で作ったファイルを読み込んでデータを復元します">復元</button>
     <input type="file" id="importFile" accept=".json" hidden>
   </div>
   <div class="controls" id="listControls">
@@ -252,7 +261,7 @@
       <option value="title">曲名順</option>
       <option value="artist">アーティスト順</option>
     </select>
-    <button id="selectBtn">☑ 選択</button>
+    <button id="selectBtn">選択</button>
     <button class="primary" id="addSong">＋ 曲を追加</button>
   </div>
 </header>
@@ -301,10 +310,6 @@
         <label>タグ（カンマ区切り）</label>
         <input type="text" id="f-tags" placeholder="バラード, 十八番, 高音キツい">
       </div>
-      <div class="field">
-        <label>最後に歌った日</label>
-        <input type="date" id="f-lastSung">
-      </div>
     </div>
     <div class="field">
       <label>歌い方メモ（全体）</label>
@@ -315,21 +320,19 @@
   <div class="panel">
     <div class="toolbar">
       <button id="editLyricsBtn">✏️ 歌詞を編集</button>
-      <button class="annbtn" data-type="shakuri">しゃくり</button>
-      <button class="annbtn" data-type="fall">フォール</button>
-      <button class="annbtn" data-type="kobushi">こぶし</button>
-      <button class="annbtn" data-type="vibrato">ビブラート</button>
-      <button class="annbtn" data-type="falsetto">ファルセット</button>
-      <button class="annbtn" data-type="accent">アクセント</button>
-      <button class="annbtn" data-type="tame">ため</button>
-      <button class="annbtn" data-type="note">📝 メモ</button>
-      <button class="annbtn" data-type="breath">∨ ブレス挿入</button>
-      <button id="findLyricsUta">🔎 歌ネットで歌詞を探す</button>
-      <button id="findLyricsGoogle">🔎 Googleで歌詞検索</button>
-      <div class="hint">
-        【歌詞カードの作り方】① 「🔎」で歌詞を確認 →「✏️ 歌詞を編集」に貼り付け ② 文字を<b>1回タップ</b>→出てくるパレットから印を選ぶだけ（ドラッグで範囲選択→上のボタンでもOK）③ 印をタップすると確認・解除。<br>
-        ボイトレ式のコツ：まず<b>ブレス（∨）を全部入れる</b>→アクセント→しゃくり・フォールの順に書き込むと作りやすいです。
-      </div>
+      <span id="lyricsTools">
+        <button id="findLyricsUta">🔎 歌ネットで歌詞を探す</button>
+        <button id="findLyricsGoogle">🔎 Google検索</button>
+        <button class="annbtn" data-type="shakuri">しゃくり</button>
+        <button class="annbtn" data-type="fall">フォール</button>
+        <button class="annbtn" data-type="kobushi">こぶし</button>
+        <button class="annbtn" data-type="vibrato">ビブラート</button>
+        <button class="annbtn" data-type="falsetto">ファルセット</button>
+        <button class="annbtn" data-type="accent">アクセント</button>
+        <button class="annbtn" data-type="tame">ため</button>
+        <button class="annbtn" data-type="note">📝 メモ</button>
+        <button class="annbtn" data-type="breath">∨ ブレス挿入</button>
+      </span>
     </div>
     <div id="lyrics"></div>
   </div>
@@ -497,7 +500,6 @@ function openSong(id) {
   $('f-status').value = current.status;
   $('f-key').value = current.key || '';
   $('f-tags').value = (current.tags || []).join(', ');
-  $('f-lastSung').value = current.lastSung || '';
   $('f-memo').value = current.memo || '';
   drawRating(current.rating);
   $('lyrics').innerHTML = current.lyrics || '';
@@ -729,17 +731,20 @@ function itunesUrl(term, cb) {
     '&country=JP&media=music&entity=song&limit=15&lang=ja_jp' + (cb ? '&callback=' + cb : '');
 }
 async function itunesSearch(term) {
+  // ① iTunesにfetchで問い合わせ
   try {
     const opts = {};
-    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(12000);
+    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(10000);
     const res = await fetch(itunesUrl(term), opts);
     if (res.ok) return await res.json();
     if (res.status === 403 || res.status === 429) { const e = new Error('rate'); e.rate = true; throw e; }
-    throw new Error('http ' + res.status);
   } catch (e) {
     if (e.rate) throw e;
-    return itunesSearchJsonp(term);
   }
+  // ② iTunesにJSONPで問い合わせ
+  try { return await itunesSearchJsonp(term); } catch (e) {}
+  // ③ Deezer（iTunesに繋がらない回線・コンテンツブロッカー環境向けの予備）
+  return deezerSearch(term);
 }
 let jsonpCount = 0;
 function itunesSearchJsonp(term) {
@@ -750,6 +755,31 @@ function itunesSearchJsonp(term) {
     function cleanup() { delete window[cb]; script.remove(); clearTimeout(timer); }
     window[cb] = data => { cleanup(); resolve(data); };
     script.src = itunesUrl(term, cb);
+    script.onerror = () => { cleanup(); reject(new Error('network')); };
+    document.body.appendChild(script);
+  });
+}
+
+/* Deezer検索（JSONP）— 結果をiTunesと同じ形に揃えて返す */
+function deezerSearch(term) {
+  return new Promise((resolve, reject) => {
+    const cb = '__dzCb' + (++jsonpCount);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => { cleanup(); reject(new Error('timeout')); }, 12000);
+    function cleanup() { delete window[cb]; script.remove(); clearTimeout(timer); }
+    window[cb] = d => {
+      cleanup();
+      const results = (d.data || []).map(t => ({
+        trackName: t.title_short || t.title || '',
+        artistName: (t.artist && t.artist.name) || '',
+        collectionName: (t.album && t.album.title) || '',
+        artworkUrl100: (t.album && t.album.cover_medium) || '',
+        previewUrl: t.preview || ''
+      }));
+      resolve({ resultCount: results.length, results });
+    };
+    script.src = 'https://api.deezer.com/search?q=' + encodeURIComponent(normalizeTerm(term)) +
+      '&limit=15&output=jsonp&callback=' + cb;
     script.onerror = () => { cleanup(); reject(new Error('network')); };
     document.body.appendChild(script);
   });
@@ -843,7 +873,6 @@ bindField('f-title', (s, v) => s.title = v);
 bindField('f-artist', (s, v) => s.artist = v);
 bindField('f-key', (s, v) => s.key = v);
 bindField('f-memo', (s, v) => s.memo = v);
-bindField('f-lastSung', (s, v) => s.lastSung = v);
 bindField('f-tags', (s, v) => s.tags = v.split(/[,、]/).map(t => t.trim()).filter(Boolean));
 $('f-status').addEventListener('change', () => {
   if (current) { current.status = $('f-status').value; persistDebounced(); }
@@ -870,7 +899,8 @@ function setEditing(on) {
   lyricsEl.contentEditable = on;
   lyricsEl.classList.toggle('editing', on);
   $('editLyricsBtn').textContent = on ? '✅ 編集を終了' : '✏️ 歌詞を編集';
-  if (on) { hidePopover(); lyricsEl.focus(); }
+  $('lyricsTools').classList.toggle('show', on);
+  if (on) { hidePopover(); hideTapPalette(); lyricsEl.focus(); }
 }
 $('editLyricsBtn').onclick = () => setEditing(!editing);
 
@@ -1116,7 +1146,7 @@ function setSelectMode(on) {
   selectMode = on;
   if (!on) selected.clear();
   document.body.classList.toggle('selecting', on);
-  $('selectBtn').textContent = on ? '☑ 選択中' : '☑ 選択';
+  $('selectBtn').textContent = on ? '選択中…' : '選択';
   updateSelCount();
   renderList();
 }
