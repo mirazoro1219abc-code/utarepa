@@ -863,13 +863,17 @@ function itunesSearchJsonp(term, attribute) {
 async function deezerSearch(dz) {
   const clean = s => normalizeTerm(s || '').replace(/"/g, '');
   const t = clean(dz.title), a = clean(dz.artist);
-  let query;
-  if (t && a) query = `track:"${t}" artist:"${a}"`;
-  else if (t) query = `track:"${t}"`;
-  else query = `artist:"${a}"`;
-  let data = await deezerQuery(query);
-  // Deezerの項目指定検索は索引漏れがあるため、0件なら普通の検索でもう一度
-  if (!(data.results || []).length) data = await deezerQuery((t + ' ' + a).trim());
+  let data;
+  if (t && a) {
+    data = await deezerQuery(`track:"${t}" artist:"${a}"`);
+    if (!(data.results || []).length) data = await deezerQuery(t + ' ' + a);
+  } else if (t) {
+    // 曲名のみ: Deezerの曲名指定検索は索引漏れが多いため、最初から普通の検索を使う
+    data = await deezerQuery(t);
+  } else {
+    data = await deezerQuery(`artist:"${a}"`);
+    if (!(data.results || []).length) data = await deezerQuery(a);
+  }
   return data;
 }
 function deezerQuery(query) {
