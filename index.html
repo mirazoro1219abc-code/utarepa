@@ -440,7 +440,7 @@
     </div>
     <div id="results"><div class="empty" style="padding:30px 0">曲名を入れて検索してください</div></div>
     <div class="mfoot">
-      <span>曲情報・試聴は iTunes Search API から取得</span>
+      <button id="diagBtn" style="font-size:11px;padding:2px 8px" title="検索がうまくいかない時に接続状態を調べます">接続テスト</button>
       <span class="btns">
         <button id="bulkAdd">📋 まとめて追加</button>
         <button id="manualAdd">手入力で追加</button>
@@ -471,6 +471,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
+const APP_VER = 14; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
@@ -549,7 +550,7 @@ function renderList() {
   $('emptyMsg').hidden = list.length > 0;
 
   const favCount = songs.filter(s => s.fav).length;
-  $('stats').textContent = `全${songs.length}曲｜⭐${favCount}曲`;
+  $('stats').textContent = `全${songs.length}曲｜⭐${favCount}曲・v${APP_VER}`;
 }
 function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -914,6 +915,34 @@ async function doSearch() {
       : '<div class="empty" style="padding:30px 0">検索できませんでした。ネット接続を確認してください。<br>「手入力で追加」も使えます。</div>';
   }
 }
+
+/* 接続テスト：どの検索経路が使えるかを表示（不具合の切り分け用） */
+$('diagBtn').onclick = async () => {
+  const box = $('results');
+  box.innerHTML = '<div class="empty" style="padding:20px 0">接続テスト中…（20秒ほどかかることがあります）</div>';
+  const r = { fetch: '×', jsonp: '×', deezer: '×' };
+  try {
+    const opts = {};
+    if (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) opts.signal = AbortSignal.timeout(8000);
+    const res = await fetch(itunesUrl('テスト'), opts);
+    r.fetch = res.ok ? '○' : '×（' + res.status + '）';
+  } catch (e) {}
+  try {
+    const d = await itunesSearchJsonp('テスト', '');
+    if ((d.results || []).length) r.jsonp = '○';
+  } catch (e) {}
+  try {
+    const d = await deezerQuery('テスト');
+    if ((d.results || []).length) r.deezer = '○';
+  } catch (e) {}
+  box.innerHTML = `<div style="padding:14px;font-size:14px;line-height:2.1">
+    アプリ版数: <b>v${APP_VER}</b><br>
+    iTunes接続（方式1）: <b>${r.fetch}</b><br>
+    iTunes接続（方式2）: <b>${r.jsonp}</b><br>
+    Deezer接続: <b>${r.deezer}</b><br>
+    <span style="font-size:11px;color:var(--sub)">この画面をスクショで共有すると原因を調べられます</span>
+  </div>`;
+};
 
 const previewAudio = new Audio();
 let playingBtn = null;
