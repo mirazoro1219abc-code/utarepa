@@ -272,6 +272,8 @@
     <h1>🎤 うたレパ</h1>
     <span class="stats" id="stats"></span>
     <span class="spacer"></span>
+  </div>
+  <div class="controls">
     <button id="fontToggle" title="文字の大きさを2段階で切り替え。小さくするとたくさんの曲が一度に見られます">文字サイズ</button>
     <button id="menuExport" title="全データをファイルに保存します。別の端末への移動や、万一の消失に備えるバックアップ用">バックアップ</button>
     <button id="menuImport" title="「バックアップ」で作ったファイルを読み込んでデータを復元します">復元</button>
@@ -287,6 +289,7 @@
       <option value="ボカロ">ボカロ</option>
       <option value="アイドル">アイドル</option>
       <option value="洋楽">洋楽</option>
+      <option value="アニソン">アニソン</option>
       <option value="練習中">練習中</option>
     </select>
     <select id="sortBy">
@@ -462,7 +465,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', '練習中'];
+const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
 let current = null;        // 現在開いている曲オブジェクト
@@ -643,6 +646,7 @@ $('bulkAdd').onclick = () => {
             <option value="ボカロ">ボカロ</option>
             <option value="アイドル">アイドル</option>
             <option value="洋楽">洋楽</option>
+            <option value="アニソン">アニソン</option>
             <option value="練習中">練習中</option>
           </select>
         </label>
@@ -792,7 +796,7 @@ function normalizeTerm(t) {
 }
 function itunesUrl(term, cb) {
   return 'https://itunes.apple.com/search?term=' + encodeURIComponent(normalizeTerm(term)) +
-    '&country=JP&media=music&entity=song&limit=15&lang=ja_jp' + (cb ? '&callback=' + cb : '');
+    '&country=JP&media=music&entity=song&limit=100&lang=ja_jp' + (cb ? '&callback=' + cb : '');
 }
 async function itunesSearch(term) {
   // ① iTunesにfetchで問い合わせ
@@ -843,7 +847,7 @@ function deezerSearch(term) {
       resolve({ resultCount: results.length, results });
     };
     script.src = 'https://api.deezer.com/search?q=' + encodeURIComponent(normalizeTerm(term)) +
-      '&limit=15&output=jsonp&callback=' + cb;
+      '&limit=100&output=jsonp&callback=' + cb;
     script.onerror = () => { cleanup(); reject(new Error('network')); };
     document.body.appendChild(script);
   });
@@ -855,7 +859,7 @@ async function doSearch() {
   $('results').innerHTML = '<div class="empty" style="padding:30px 0">検索中…</div>';
   try {
     const data = await itunesSearch(q);
-    renderResults(data.results || []);
+    renderResults(improveResults(data.results || [], q));
   } catch (err) {
     $('results').innerHTML = err.rate
       ? '<div class="empty" style="padding:30px 0">検索が混み合っています（回数制限）。<br>1〜2分待ってからもう一度お試しください。</div>'
@@ -870,6 +874,37 @@ function stopPreview() {
   if (playingBtn) { playingBtn.textContent = '▶'; playingBtn = null; }
 }
 previewAudio.addEventListener('ended', stopPreview);
+
+/* 検索結果の整理：カラオケ音源・オルゴール等の別バージョンを除き、
+   同じ曲の重複をまとめ、検索語に曲名が一致する曲（＝目的の曲）を上に出す */
+function improveResults(items, q) {
+  const noise = /カラオケ|karaoke|オルゴール|orgel|music box|インスト|instrumental|off vocal|オフボーカル|ガイド(ボーカル|メロ)?無?|cover|カバー|歌ってみた|tribute|リミックス|remix|acoustic ver|ピアノver|bgm/i;
+  const nq = normalizeTerm(q).toLowerCase();
+  let list = items;
+  if (!noise.test(nq)) {
+    const filtered = list.filter(it =>
+      !noise.test((it.trackName || '') + ' ' + (it.artistName || '') + ' ' + (it.collectionName || '')));
+    if (filtered.length) list = filtered;
+  }
+  const seen = new Set();
+  list = list.filter(it => {
+    const key = (it.trackName || '').toLowerCase() + '|' + (it.artistName || '').toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  const score = it => {
+    const t = (it.trackName || '').toLowerCase();
+    if (t === nq) return 0;
+    if (nq && t.startsWith(nq)) return 1;
+    if (nq && t.includes(nq)) return 2;
+    return 3;
+  };
+  return list
+    .map((it, i) => [score(it), i, it])
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1])
+    .map(x => x[2]);
+}
 
 function renderResults(items) {
   const box = $('results');
@@ -1008,18 +1043,18 @@ function setEditing(on) {
 $('editLyricsBtn').onclick = () => setEditing(!editing);
 
 /* 歌詞カード全画面表示（書き込んだ印もそのまま大きく表示） */
-let cardFont = parseInt(localStorage.getItem('utarepa.cardFont') || '26', 10);
+let cardFont = 16;
 function applyCardFont() {
   cardFont = Math.max(16, Math.min(48, cardFont));
   $('cardLyrics').style.fontSize = cardFont + 'px';
-  localStorage.setItem('utarepa.cardFont', cardFont);
 }
 $('lyricsCardBtn').onclick = () => {
   if (!current) return;
   if (editing) saveLyrics();
   setEditing(false);
   $('cardTitle').textContent = (current.title || '（無題）') + (current.key ? '　key: ' + current.key : '');
-  // 表示中の歌詞DOM（印つき）をそのまま大きく表示
+  // 表示中の歌詞DOM（印つき）をそのまま大きく表示。開いたときは一番小さい文字で全体を見渡せるように
+  cardFont = 16;
   $('cardLyrics').innerHTML = lyricsEl.innerHTML || current.lyrics || '';
   applyCardFont();
   $('cardOverlay').classList.add('show');
@@ -1210,9 +1245,17 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#tapPalette') && !e.target.closest('#lyrics')) hideTapPalette();
 });
 
-/* ---------- 検索・並び替え ---------- */
+/* ---------- 検索・並び替え（並び順と絞り込みは次回起動時も保持） ---------- */
+const savedSort = localStorage.getItem('utarepa.sort');
+if (savedSort && [...$('sortBy').options].some(o => o.value === savedSort)) $('sortBy').value = savedSort;
+const savedFilter = localStorage.getItem('utarepa.filter');
+if (savedFilter && [...$('filterStatus').options].some(o => o.value === savedFilter)) $('filterStatus').value = savedFilter;
 ['search', 'filterStatus', 'sortBy'].forEach(id => {
-  $(id).addEventListener('input', renderList);
+  $(id).addEventListener('input', () => {
+    localStorage.setItem('utarepa.sort', $('sortBy').value);
+    localStorage.setItem('utarepa.filter', $('filterStatus').value);
+    renderList();
+  });
 });
 
 /* ---------- バックアップ保存 / 復元 ---------- */
