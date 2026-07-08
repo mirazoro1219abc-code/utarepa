@@ -860,13 +860,19 @@ function itunesSearchJsonp(term, attribute) {
 }
 
 /* Deezer検索（JSONP）— 結果をiTunesと同じ形に揃えて返す。曲名/アーティスト指定に対応 */
-function deezerSearch(dz) {
+async function deezerSearch(dz) {
   const clean = s => normalizeTerm(s || '').replace(/"/g, '');
   const t = clean(dz.title), a = clean(dz.artist);
   let query;
   if (t && a) query = `track:"${t}" artist:"${a}"`;
   else if (t) query = `track:"${t}"`;
   else query = `artist:"${a}"`;
+  let data = await deezerQuery(query);
+  // Deezerの項目指定検索は索引漏れがあるため、0件なら普通の検索でもう一度
+  if (!(data.results || []).length) data = await deezerQuery((t + ' ' + a).trim());
+  return data;
+}
+function deezerQuery(query) {
   return new Promise((resolve, reject) => {
     const cb = '__dzCb' + (++jsonpCount);
     const script = document.createElement('script');
