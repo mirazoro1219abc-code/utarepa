@@ -471,7 +471,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 14; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 15; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
@@ -633,7 +633,7 @@ $('bulkAdd').onclick = () => {
     <div style="padding:6px 10px">
       <div style="font-size:12px;color:var(--sub);margin-bottom:6px">
         1行に1曲、「曲名 / アーティスト」の形式で貼り付け（アーティスト省略OK）。<br>
-        カラーシング等のレパートリーは、画面のスクショから読み取るか、曲名リストを貼り付けてください。
+        📱 iPhoneは<b>写真アプリ</b>でスクショの文字を長押し→すべてを選択→コピーして、ここに貼るのが一番正確です。
       </div>
       <div style="display:flex;flex-direction:column;gap:5px;margin-bottom:8px;font-size:12px">
         <label><input type="checkbox" id="bulkPair"> 曲名の次の行がアーティスト（2行で1曲）</label>
@@ -663,6 +663,15 @@ $('bulkAdd').onclick = () => {
       <div id="bulkProgress" style="font-size:12px;color:var(--sub);margin-top:6px"></div>
     </div>`;
   $('bulkGo').onclick = runBulkAdd;
+  // 「2行で1曲」チェックを入れた瞬間に、貼り付け済みのリストを「曲名 / アーティスト」の形に変換
+  $('bulkPair').addEventListener('change', () => {
+    if (!$('bulkPair').checked) return;
+    const lines = $('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return;
+    if (bulkLooksPaired(lines)) { toast('すでに「曲名 / アーティスト」の形になっています'); return; }
+    $('bulkText').value = bulkPairLines(lines).join('\n');
+    toast('2行ずつを「曲名 / アーティスト」にまとめました');
+  });
   $('bulkImgBtn').onclick = () => $('bulkImg').click();
   $('bulkImg').addEventListener('change', e => {
     if (e.target.files.length) ocrImages([...e.target.files]);
@@ -762,9 +771,24 @@ async function ocrImages(files) {
   btn.disabled = false;
 }
 
+/* 2行=1曲の判定と変換（貼り付け・スクショ読み取り共通） */
+function bulkLooksPaired(lines) {
+  const withSep = lines.filter(l => /[\/／\t]/.test(l)).length;
+  return withSep >= lines.length / 2;
+}
+function bulkPairLines(lines) {
+  const out = [];
+  for (let i = 0; i < lines.length; i += 2) {
+    out.push(lines[i] + (lines[i + 1] ? ' / ' + lines[i + 1] : ''));
+  }
+  return out;
+}
+
 async function runBulkAdd() {
-  const lines = $('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
+  let lines = $('bulkText').value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) { toast('曲を入力してください'); return; }
+  // チェックを入れてから貼り付けた場合もここで変換する
+  if ($('bulkPair').checked && !bulkLooksPaired(lines)) lines = bulkPairLines(lines);
   const tag = $('bulkTag').value.trim();
   const lookup = $('bulkLookup').checked;
   $('bulkGo').disabled = true;
