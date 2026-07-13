@@ -97,7 +97,13 @@
 
   /* ---- detail view ---- */
   #detailView { max-width: 800px; margin: 0 auto; padding: 20px; }
-  .detail-nav { display: flex; gap: 8px; margin-bottom: 16px; }
+  .detail-nav { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
+  #prevSong, #nextSong { padding: 4px 12px; font-weight: bold; font-size: 16px; line-height: 1; }
+  #navPos { min-width: 44px; text-align: center; }
+  .speed-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
+  .speed-row #spdSlider { flex: 1; min-width: 120px; accent-color: var(--accent); }
+  .spd-val { font-weight: bold; font-size: 15px; min-width: 56px; text-align: center; }
+  #detailView.swiping { transition: transform .05s; }
   .panel {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
     padding: 18px 20px; box-shadow: var(--shadow); margin-bottom: 16px;
@@ -315,6 +321,9 @@
 <section id="detailView" hidden>
   <div class="detail-nav">
     <button id="backBtn">← 一覧に戻る</button>
+    <button id="prevSong" title="前の曲へ">‹</button>
+    <span id="navPos" class="stats"></span>
+    <button id="nextSong" title="次の曲へ">›</button>
     <span class="spacer"></span>
     <button id="favBtn">☆ お気に入り</button>
     <button class="danger" id="deleteBtn">🗑 この曲を削除</button>
@@ -367,6 +376,33 @@
     <div class="field">
       <label>歌い方メモ（全体）</label>
       <textarea id="f-memo" placeholder="サビ前はブレス多め、2番Aメロは抑えめ…など"></textarea>
+    </div>
+  </div>
+
+  <div class="panel" id="audioPanel">
+    <label style="font-size:11px;color:var(--sub);font-weight:bold">🎵 練習用の音源（自分の録音・手持ちの音ファイル）</label>
+    <div id="audioEmpty" style="margin-top:8px">
+      <button id="audioPick">🎵 音源ファイルを選ぶ</button>
+      <input type="file" id="audioFile" accept="audio/*" hidden>
+      <div style="font-size:11px;color:var(--sub);margin-top:6px">
+        自分で録音した音や手持ちの音ファイルを取り込むと、ゆっくり再生（0.5倍〜）で練習できます。<br>
+        ※音源はこの端末の中だけに保存されます（1曲あたり数MB使います）。
+      </div>
+    </div>
+    <div id="audioArea" hidden style="margin-top:8px">
+      <audio id="audioEl" controls style="width:100%"></audio>
+      <div class="speed-row">
+        <span>速さ</span>
+        <button id="spdDown">−0.05</button>
+        <input type="range" id="spdSlider" min="0.5" max="2" step="0.05" value="1">
+        <button id="spdUp">＋0.05</button>
+        <span id="spdVal" class="spd-val">1.00×</span>
+        <button id="spdReset">1.0×に戻す</button>
+      </div>
+      <div style="margin-top:8px">
+        <button class="danger" id="audioDelete">音源を削除</button>
+        <span id="audioName" style="font-size:11px;color:var(--sub);margin-left:8px"></span>
+      </div>
     </div>
   </div>
 
@@ -471,7 +507,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 15; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 16; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
@@ -503,11 +539,11 @@ function starsHtml(n) {
   for (let i = 1; i <= 5; i++) s += `<span class="${i <= n ? '' : 'off'}">★</span>`;
   return `<span class="stars">${s}</span>`;
 }
-function renderList() {
+/* 現在の絞り込み・並び替えを適用した曲配列（一覧とスワイプ移動で共有） */
+function getVisibleList() {
   const q = $('search').value.trim().toLowerCase();
   const fs = $('filterStatus').value;
   const sort = $('sortBy').value;
-
   let list = songs.filter(s => {
     if (fs !== 'all' && !(s.tags || []).includes(fs)) return false;
     if (!q) return true;
@@ -520,7 +556,11 @@ function renderList() {
   else if (sort === 'title') list.sort((a, b) => coll.compare(a.title, b.title));
   else if (sort === 'artist') list.sort((a, b) => coll.compare(a.artist, b.artist));
   else list.sort((a, b) => b.created - a.created);
+  return list;
+}
 
+function renderList() {
+  const list = getVisibleList();
   const grid = $('grid');
   grid.innerHTML = '';
   list.forEach(s => {
@@ -574,6 +614,8 @@ function openSong(id) {
   drawRating(current.rating);
   $('lyrics').innerHTML = current.lyrics || '';
   setEditing(false);
+  loadAudioForCurrent();
+  updateNavPos();
   $('listView').hidden = true;
   $('detailView').hidden = false;
   window.scrollTo(0, 0);
@@ -581,6 +623,7 @@ function openSong(id) {
 function closeSong() {
   hidePopover();
   setEditing(false);
+  teardownAudio();
   current = null;
   $('detailView').hidden = true;
   $('listView').hidden = false;
@@ -588,12 +631,166 @@ function closeSong() {
 }
 $('backBtn').onclick = closeSong;
 
-$('deleteBtn').onclick = () => {
+/* 前後の曲へ（スワイプ・ボタン共通） */
+function updateNavPos() {
+  const list = getVisibleList();
+  const idx = list.findIndex(s => current && s.id === current.id);
+  $('navPos').textContent = idx >= 0 ? (idx + 1) + '/' + list.length : '';
+}
+function gotoSibling(dir) {
+  if (!current || editing) return;
+  if ($('cardOverlay').classList.contains('show')) return;
+  const list = getVisibleList();
+  const idx = list.findIndex(s => s.id === current.id);
+  if (idx < 0) return;
+  const ni = idx + dir;
+  if (ni < 0) { toast('最初の曲です'); return; }
+  if (ni >= list.length) { toast('最後の曲です'); return; }
+  openSong(list[ni].id);
+}
+$('prevSong').onclick = () => gotoSibling(-1);
+$('nextSong').onclick = () => gotoSibling(1);
+
+/* 詳細画面の左右スワイプ */
+(() => {
+  const dv = $('detailView');
+  let x0 = null, y0 = null;
+  dv.addEventListener('touchstart', e => {
+    if (e.touches.length !== 1) { x0 = null; return; }
+    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+  }, { passive: true });
+  dv.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - x0, dy = t.clientY - y0;
+    x0 = null;
+    if (editing) return;
+    // 入力欄やスライダー上の操作はスワイプ扱いしない
+    if (e.target.closest('input, textarea, select, audio, #lyrics, .speed-row')) return;
+    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      gotoSibling(dx < 0 ? 1 : -1); // 左へフリック＝次の曲
+    }
+  }, { passive: true });
+})();
+
+$('deleteBtn').onclick = async () => {
   if (!current) return;
   if (!confirm(`「${current.title}」を削除しますか？`)) return;
-  songs = songs.filter(s => s.id !== current.id);
+  const id = current.id;
+  songs = songs.filter(s => s.id !== id);
+  try { await idbDelete(id); } catch (e) {}
   persist();
   closeSong();
+};
+
+/* ========== 練習用音源：IndexedDB保存＋速度変更再生 ========== */
+let _idb = null;
+function idbOpen() {
+  if (_idb) return _idb;
+  _idb = new Promise((resolve, reject) => {
+    const req = indexedDB.open('utarepa-audio', 1);
+    req.onupgradeneeded = () => req.result.createObjectStore('clips');
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _idb;
+}
+async function idbPut(key, val) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('clips', 'readwrite');
+    tx.objectStore('clips').put(val, key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const req = db.transaction('clips', 'readonly').objectStore('clips').get(key);
+    req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
+  });
+}
+async function idbDelete(key) {
+  const db = await idbOpen();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction('clips', 'readwrite');
+    tx.objectStore('clips').delete(key);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+
+const audioEl = $('audioEl');
+let audioUrl = null;
+const SPEED_KEY = 'utarepa.speed';
+
+function setSpeed(v) {
+  v = Math.min(2, Math.max(0.5, Math.round(v * 20) / 20));
+  audioEl.playbackRate = v;
+  audioEl.preservesPitch = true;
+  audioEl.webkitPreservesPitch = true; // Safari/iOS
+  $('spdSlider').value = v;
+  $('spdVal').textContent = v.toFixed(2) + '×';
+  localStorage.setItem(SPEED_KEY, v);
+}
+$('spdSlider').addEventListener('input', () => setSpeed(parseFloat($('spdSlider').value)));
+$('spdDown').onclick = () => setSpeed(audioEl.playbackRate - 0.05);
+$('spdUp').onclick = () => setSpeed(audioEl.playbackRate + 0.05);
+$('spdReset').onclick = () => setSpeed(1);
+
+function teardownAudio() {
+  audioEl.pause();
+  audioEl.removeAttribute('src');
+  audioEl.load();
+  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
+}
+async function loadAudioForCurrent() {
+  teardownAudio();
+  const has = current && current.hasAudio;
+  $('audioArea').hidden = !has;
+  $('audioEmpty').hidden = !!has;
+  if (!has) return;
+  try {
+    const rec = await idbGet(current.id);
+    if (rec && rec.blob) {
+      audioUrl = URL.createObjectURL(rec.blob);
+      audioEl.src = audioUrl;
+      $('audioName').textContent = rec.name || '';
+      setSpeed(parseFloat(localStorage.getItem(SPEED_KEY) || '1'));
+    } else {
+      // データが見つからない（別端末など）：状態を戻す
+      current.hasAudio = false; persist(true);
+      $('audioArea').hidden = true; $('audioEmpty').hidden = false;
+    }
+  } catch (e) {
+    $('audioArea').hidden = true; $('audioEmpty').hidden = false;
+  }
+}
+$('audioPick').onclick = () => $('audioFile').click();
+$('audioFile').addEventListener('change', async e => {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !current) return;
+  if (file.size > 30 * 1024 * 1024) {
+    if (!confirm('この音源は' + (file.size / 1048576).toFixed(0) + 'MBあります。端末の容量を使いますが取り込みますか？')) return;
+  }
+  try {
+    await idbPut(current.id, { blob: file, name: file.name });
+    current.hasAudio = true;
+    persist(true);
+    await loadAudioForCurrent();
+    toast('音源を取り込みました');
+  } catch (err) {
+    alert('音源を保存できませんでした（端末の空き容量が足りない可能性があります）。');
+  }
+});
+$('audioDelete').onclick = async () => {
+  if (!current) return;
+  if (!confirm('この曲の音源を削除しますか？（曲そのものは残ります）')) return;
+  try { await idbDelete(current.id); } catch (e) {}
+  current.hasAudio = false;
+  persist(true);
+  await loadAudioForCurrent();
+  toast('音源を削除しました');
 };
 
 function createSong(data) {
