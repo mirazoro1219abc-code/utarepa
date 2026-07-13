@@ -103,6 +103,7 @@
   .speed-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
   .speed-row #spdSlider { flex: 1; min-width: 120px; accent-color: var(--accent); }
   .spd-val { font-weight: bold; font-size: 15px; min-width: 56px; text-align: center; }
+  .vocalbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
   #detailView.swiping { transition: transform .05s; }
   .panel {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -399,6 +400,15 @@
         <span id="spdVal" class="spd-val">1.00×</span>
         <button id="spdReset">1.0×に戻す</button>
       </div>
+      <div class="speed-row" id="vocalRow">
+        <span>音の種類</span>
+        <button class="vocalbtn on" data-mode="orig">原曲</button>
+        <button class="vocalbtn" data-mode="off">ボーカルオフ</button>
+        <button class="vocalbtn" data-mode="only">ボーカルのみ</button>
+      </div>
+      <div id="vocalNote" style="font-size:11px;color:var(--sub);margin-top:4px">
+        ※ステレオ音源向けの簡易処理です。曲によってはボーカルが少し残ったり、伴奏も薄くなることがあります。
+      </div>
       <div style="margin-top:8px">
         <button class="danger" id="audioDelete">音源を削除</button>
         <span id="audioName" style="font-size:11px;color:var(--sub);margin-left:8px"></span>
@@ -507,7 +517,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 16; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 17; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
@@ -723,6 +733,53 @@ const audioEl = $('audioEl');
 let audioUrl = null;
 const SPEED_KEY = 'utarepa.speed';
 
+/* ボーカルオフ/のみ：Web Audioでセンターキャンセル（ステレオの左右差を利用） */
+let actx = null, srcNode = null, splitter = null, invGain = null, mixGain = null;
+let vocalMode = 'orig';
+function ensureAudioGraph() {
+  if (actx) return true;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return false;
+  try {
+    actx = new AC();
+    srcNode = actx.createMediaElementSource(audioEl);
+    splitter = actx.createChannelSplitter(2);
+    invGain = actx.createGain(); invGain.gain.value = -1;
+    mixGain = actx.createGain();
+  } catch (e) { actx = null; return false; }
+  return true;
+}
+function applyVocalMode(mode) {
+  vocalMode = mode;
+  document.querySelectorAll('.vocalbtn').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
+  if (mode !== 'orig' && !ensureAudioGraph()) {
+    toast('この端末ではボーカルオフを利用できません');
+    vocalMode = 'orig';
+    document.querySelectorAll('.vocalbtn').forEach(b => b.classList.toggle('on', b.dataset.mode === 'orig'));
+    return;
+  }
+  if (!actx) return; // 原曲のまま一度もグラフを作っていない → 素の再生
+  if (actx.state === 'suspended') actx.resume();
+  [srcNode, splitter, invGain, mixGain].forEach(n => { try { n.disconnect(); } catch (e) {} });
+  if (mode === 'orig') {
+    srcNode.connect(actx.destination);
+  } else if (mode === 'off') {          // L − R（センター＝ボーカルを打ち消す）
+    srcNode.connect(splitter);
+    splitter.connect(mixGain, 0);
+    splitter.connect(invGain, 1);
+    invGain.connect(mixGain);
+    mixGain.connect(actx.destination);
+  } else if (mode === 'only') {         // L ＋ R（センター＝ボーカルを強調）
+    srcNode.connect(splitter);
+    splitter.connect(mixGain, 0);
+    splitter.connect(mixGain, 1);
+    mixGain.connect(actx.destination);
+  }
+}
+document.querySelectorAll('.vocalbtn').forEach(b => {
+  b.onclick = () => applyVocalMode(b.dataset.mode);
+});
+
 function setSpeed(v) {
   v = Math.min(2, Math.max(0.5, Math.round(v * 20) / 20));
   audioEl.playbackRate = v;
@@ -756,6 +813,7 @@ async function loadAudioForCurrent() {
       audioEl.src = audioUrl;
       $('audioName').textContent = rec.name || '';
       setSpeed(parseFloat(localStorage.getItem(SPEED_KEY) || '1'));
+      applyVocalMode('orig'); // 曲を開くたびに原曲に戻す
     } else {
       // データが見つからない（別端末など）：状態を戻す
       current.hasAudio = false; persist(true);
