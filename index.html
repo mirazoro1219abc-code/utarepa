@@ -100,10 +100,14 @@
   .detail-nav { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
   #prevSong, #nextSong { padding: 4px 12px; font-weight: bold; font-size: 16px; line-height: 1; }
   #navPos { min-width: 44px; text-align: center; }
-  .speed-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px; font-size: 12px; }
-  .speed-row #spdSlider { flex: 1; min-width: 120px; accent-color: var(--accent); }
-  .spd-val { font-weight: bold; font-size: 15px; min-width: 56px; text-align: center; }
-  .vocalbtn.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+  .meta-details { border-top: 1px solid var(--line); margin-top: 4px; }
+  .meta-details > summary {
+    list-style: none; cursor: pointer; padding: 12px 2px 4px; font-size: 13px;
+    color: var(--sub); font-weight: bold; display: flex; align-items: center; gap: 6px;
+  }
+  .meta-details > summary::-webkit-details-marker { display: none; }
+  .meta-details > summary::after { content: "▾"; margin-left: auto; transition: transform .15s; }
+  .meta-details[open] > summary::after { transform: rotate(180deg); }
   #detailView.swiping { transition: transform .05s; }
   .panel {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -113,6 +117,9 @@
   .field { display: flex; flex-direction: column; gap: 4px; }
   .field label { font-size: 11px; color: var(--sub); font-weight: bold; }
   .field.grow { flex: 1; min-width: 180px; }
+  /* 曲名・アーティストは狭い画面でも横並びのまま */
+  .name-row { flex-wrap: nowrap; }
+  .name-row .field { min-width: 0; }
   #f-title { font-size: 18px; font-weight: bold; }
   .rating-widget { font-size: 26px; cursor: pointer; user-select: none; line-height: 1; }
   .rating-widget span { color: #ddd6ca; transition: color .1s; }
@@ -331,7 +338,7 @@
   </div>
 
   <div class="panel">
-    <div class="field-row">
+    <div class="field-row name-row">
       <div class="field grow">
         <label>曲名</label>
         <input type="text" id="f-title" placeholder="曲名">
@@ -341,79 +348,46 @@
         <input type="text" id="f-artist" placeholder="アーティスト">
       </div>
     </div>
-    <div class="field-row">
-      <div class="field">
-        <label>キー設定</label>
-        <select id="f-key" style="width:120px">
-          <option value="">未設定</option>
-          <option value="原キー">原キー</option>
-          <option value="+6">+6</option>
-          <option value="+5">+5</option>
-          <option value="+4">+4</option>
-          <option value="+3">+3</option>
-          <option value="+2">+2</option>
-          <option value="+1">+1</option>
-          <option value="-1">-1</option>
-          <option value="-2">-2</option>
-          <option value="-3">-3</option>
-          <option value="-4">-4</option>
-          <option value="-5">-5</option>
-          <option value="-6">-6</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>自己評価</label>
-        <div class="rating-widget" id="f-rating"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
-      </div>
-      <div class="field grow">
-        <label>タグ</label>
-        <div class="tagwrap">
-          <button type="button" id="f-tagBtn">タグを選ぶ ▾</button>
-          <div id="f-tagboxes" class="tagboxes"></div>
+    <details id="metaDetails" class="meta-details">
+      <summary><span id="metaSummary">⚙ キー・評価・タグ・メモ</span></summary>
+      <div class="field-row" style="margin-top:12px">
+        <div class="field">
+          <label>キー設定</label>
+          <select id="f-key" style="width:120px">
+            <option value="">未設定</option>
+            <option value="原キー">原キー</option>
+            <option value="+6">+6</option>
+            <option value="+5">+5</option>
+            <option value="+4">+4</option>
+            <option value="+3">+3</option>
+            <option value="+2">+2</option>
+            <option value="+1">+1</option>
+            <option value="-1">-1</option>
+            <option value="-2">-2</option>
+            <option value="-3">-3</option>
+            <option value="-4">-4</option>
+            <option value="-5">-5</option>
+            <option value="-6">-6</option>
+          </select>
         </div>
-        <input type="text" id="f-tags" placeholder="その他のタグ（カンマ区切り・自由入力）">
+        <div class="field">
+          <label>自己評価</label>
+          <div class="rating-widget" id="f-rating"><span>★</span><span>★</span><span>★</span><span>★</span><span>★</span></div>
+        </div>
+        <div class="field grow">
+          <label>タグ</label>
+          <div class="tagwrap">
+            <button type="button" id="f-tagBtn">タグを選ぶ ▾</button>
+            <div id="f-tagboxes" class="tagboxes"></div>
+          </div>
+          <input type="text" id="f-tags" placeholder="その他のタグ（カンマ区切り・自由入力）">
+        </div>
       </div>
-    </div>
-    <div class="field">
-      <label>歌い方メモ（全体）</label>
-      <textarea id="f-memo" placeholder="サビ前はブレス多め、2番Aメロは抑えめ…など"></textarea>
-    </div>
-  </div>
-
-  <div class="panel" id="audioPanel">
-    <label style="font-size:11px;color:var(--sub);font-weight:bold">🎵 練習用の音源（自分の録音・手持ちの音ファイル）</label>
-    <div id="audioEmpty" style="margin-top:8px">
-      <button id="audioPick">🎵 音源ファイルを選ぶ</button>
-      <input type="file" id="audioFile" accept="audio/*" hidden>
-      <div style="font-size:11px;color:var(--sub);margin-top:6px">
-        自分で録音した音や手持ちの音ファイルを取り込むと、ゆっくり再生（0.5倍〜）で練習できます。<br>
-        ※音源はこの端末の中だけに保存されます（1曲あたり数MB使います）。
+      <div class="field">
+        <label>歌い方メモ（全体）</label>
+        <textarea id="f-memo" placeholder="サビ前はブレス多め、2番Aメロは抑えめ…など"></textarea>
       </div>
-    </div>
-    <div id="audioArea" hidden style="margin-top:8px">
-      <audio id="audioEl" controls style="width:100%"></audio>
-      <div class="speed-row">
-        <span>速さ</span>
-        <button id="spdDown">−0.05</button>
-        <input type="range" id="spdSlider" min="0.5" max="2" step="0.05" value="1">
-        <button id="spdUp">＋0.05</button>
-        <span id="spdVal" class="spd-val">1.00×</span>
-        <button id="spdReset">1.0×に戻す</button>
-      </div>
-      <div class="speed-row" id="vocalRow">
-        <span>音の種類</span>
-        <button class="vocalbtn on" data-mode="orig">原曲</button>
-        <button class="vocalbtn" data-mode="off">ボーカルオフ</button>
-        <button class="vocalbtn" data-mode="only">ボーカルのみ</button>
-      </div>
-      <div id="vocalNote" style="font-size:11px;color:var(--sub);margin-top:4px">
-        ※ステレオ音源向けの簡易処理です。曲によってはボーカルが少し残ったり、伴奏も薄くなることがあります。
-      </div>
-      <div style="margin-top:8px">
-        <button class="danger" id="audioDelete">音源を削除</button>
-        <span id="audioName" style="font-size:11px;color:var(--sub);margin-left:8px"></span>
-      </div>
-    </div>
+    </details>
   </div>
 
   <div class="panel">
@@ -517,7 +491,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 17; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 19; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
@@ -624,7 +598,8 @@ function openSong(id) {
   drawRating(current.rating);
   $('lyrics').innerHTML = current.lyrics || '';
   setEditing(false);
-  loadAudioForCurrent();
+  $('metaDetails').open = false;
+  updateMetaSummary();
   updateNavPos();
   $('listView').hidden = true;
   $('detailView').hidden = false;
@@ -633,7 +608,6 @@ function openSong(id) {
 function closeSong() {
   hidePopover();
   setEditing(false);
-  teardownAudio();
   current = null;
   $('detailView').hidden = true;
   $('listView').hidden = false;
@@ -683,173 +657,27 @@ $('nextSong').onclick = () => gotoSibling(1);
   }, { passive: true });
 })();
 
-$('deleteBtn').onclick = async () => {
+$('deleteBtn').onclick = () => {
   if (!current) return;
   if (!confirm(`「${current.title}」を削除しますか？`)) return;
-  const id = current.id;
-  songs = songs.filter(s => s.id !== id);
-  try { await idbDelete(id); } catch (e) {}
+  songs = songs.filter(s => s.id !== current.id);
   persist();
   closeSong();
 };
 
-/* ========== 練習用音源：IndexedDB保存＋速度変更再生 ========== */
-let _idb = null;
-function idbOpen() {
-  if (_idb) return _idb;
-  _idb = new Promise((resolve, reject) => {
-    const req = indexedDB.open('utarepa-audio', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('clips');
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-  return _idb;
-}
-async function idbPut(key, val) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('clips', 'readwrite');
-    tx.objectStore('clips').put(val, key);
-    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
-  });
-}
-async function idbGet(key) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const req = db.transaction('clips', 'readonly').objectStore('clips').get(key);
-    req.onsuccess = () => resolve(req.result); req.onerror = () => reject(req.error);
-  });
-}
-async function idbDelete(key) {
-  const db = await idbOpen();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction('clips', 'readwrite');
-    tx.objectStore('clips').delete(key);
-    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
-  });
-}
-
-const audioEl = $('audioEl');
-let audioUrl = null;
-const SPEED_KEY = 'utarepa.speed';
-
-/* ボーカルオフ/のみ：Web Audioでセンターキャンセル（ステレオの左右差を利用） */
-let actx = null, srcNode = null, splitter = null, invGain = null, mixGain = null;
-let vocalMode = 'orig';
-function ensureAudioGraph() {
-  if (actx) return true;
-  const AC = window.AudioContext || window.webkitAudioContext;
-  if (!AC) return false;
-  try {
-    actx = new AC();
-    srcNode = actx.createMediaElementSource(audioEl);
-    splitter = actx.createChannelSplitter(2);
-    invGain = actx.createGain(); invGain.gain.value = -1;
-    mixGain = actx.createGain();
-  } catch (e) { actx = null; return false; }
-  return true;
-}
-function applyVocalMode(mode) {
-  vocalMode = mode;
-  document.querySelectorAll('.vocalbtn').forEach(b => b.classList.toggle('on', b.dataset.mode === mode));
-  if (mode !== 'orig' && !ensureAudioGraph()) {
-    toast('この端末ではボーカルオフを利用できません');
-    vocalMode = 'orig';
-    document.querySelectorAll('.vocalbtn').forEach(b => b.classList.toggle('on', b.dataset.mode === 'orig'));
-    return;
-  }
-  if (!actx) return; // 原曲のまま一度もグラフを作っていない → 素の再生
-  if (actx.state === 'suspended') actx.resume();
-  [srcNode, splitter, invGain, mixGain].forEach(n => { try { n.disconnect(); } catch (e) {} });
-  if (mode === 'orig') {
-    srcNode.connect(actx.destination);
-  } else if (mode === 'off') {          // L − R（センター＝ボーカルを打ち消す）
-    srcNode.connect(splitter);
-    splitter.connect(mixGain, 0);
-    splitter.connect(invGain, 1);
-    invGain.connect(mixGain);
-    mixGain.connect(actx.destination);
-  } else if (mode === 'only') {         // L ＋ R（センター＝ボーカルを強調）
-    srcNode.connect(splitter);
-    splitter.connect(mixGain, 0);
-    splitter.connect(mixGain, 1);
-    mixGain.connect(actx.destination);
-  }
-}
-document.querySelectorAll('.vocalbtn').forEach(b => {
-  b.onclick = () => applyVocalMode(b.dataset.mode);
-});
-
-function setSpeed(v) {
-  v = Math.min(2, Math.max(0.5, Math.round(v * 20) / 20));
-  audioEl.playbackRate = v;
-  audioEl.preservesPitch = true;
-  audioEl.webkitPreservesPitch = true; // Safari/iOS
-  $('spdSlider').value = v;
-  $('spdVal').textContent = v.toFixed(2) + '×';
-  localStorage.setItem(SPEED_KEY, v);
-}
-$('spdSlider').addEventListener('input', () => setSpeed(parseFloat($('spdSlider').value)));
-$('spdDown').onclick = () => setSpeed(audioEl.playbackRate - 0.05);
-$('spdUp').onclick = () => setSpeed(audioEl.playbackRate + 0.05);
-$('spdReset').onclick = () => setSpeed(1);
-
-function teardownAudio() {
-  audioEl.pause();
-  audioEl.removeAttribute('src');
-  audioEl.load();
-  if (audioUrl) { URL.revokeObjectURL(audioUrl); audioUrl = null; }
-}
-async function loadAudioForCurrent() {
-  teardownAudio();
-  const has = current && current.hasAudio;
-  $('audioArea').hidden = !has;
-  $('audioEmpty').hidden = !!has;
-  if (!has) return;
-  try {
-    const rec = await idbGet(current.id);
-    if (rec && rec.blob) {
-      audioUrl = URL.createObjectURL(rec.blob);
-      audioEl.src = audioUrl;
-      $('audioName').textContent = rec.name || '';
-      setSpeed(parseFloat(localStorage.getItem(SPEED_KEY) || '1'));
-      applyVocalMode('orig'); // 曲を開くたびに原曲に戻す
-    } else {
-      // データが見つからない（別端末など）：状態を戻す
-      current.hasAudio = false; persist(true);
-      $('audioArea').hidden = true; $('audioEmpty').hidden = false;
-    }
-  } catch (e) {
-    $('audioArea').hidden = true; $('audioEmpty').hidden = false;
-  }
-}
-$('audioPick').onclick = () => $('audioFile').click();
-$('audioFile').addEventListener('change', async e => {
-  const file = e.target.files[0];
-  e.target.value = '';
-  if (!file || !current) return;
-  if (file.size > 30 * 1024 * 1024) {
-    if (!confirm('この音源は' + (file.size / 1048576).toFixed(0) + 'MBあります。端末の容量を使いますが取り込みますか？')) return;
-  }
-  try {
-    await idbPut(current.id, { blob: file, name: file.name });
-    current.hasAudio = true;
-    persist(true);
-    await loadAudioForCurrent();
-    toast('音源を取り込みました');
-  } catch (err) {
-    alert('音源を保存できませんでした（端末の空き容量が足りない可能性があります）。');
-  }
-});
-$('audioDelete').onclick = async () => {
+/* 折りたたみ（キー/評価/タグ/メモ）のsummaryに、設定済み内容を要約表示 */
+function updateMetaSummary() {
   if (!current) return;
-  if (!confirm('この曲の音源を削除しますか？（曲そのものは残ります）')) return;
-  try { await idbDelete(current.id); } catch (e) {}
-  current.hasAudio = false;
-  persist(true);
-  await loadAudioForCurrent();
-  toast('音源を削除しました');
-};
+  const parts = [];
+  if (current.key) parts.push('key ' + current.key);
+  if (current.rating) parts.push('★' + current.rating);
+  const tagCount = (current.tags || []).length;
+  if (tagCount) parts.push('タグ' + tagCount);
+  if ((current.memo || '').trim()) parts.push('メモ');
+  $('metaSummary').textContent = parts.length
+    ? '⚙ ' + parts.join('・')
+    : '⚙ キー・評価・タグ・メモ';
+}
 
 function createSong(data) {
   const s = {
@@ -1332,6 +1160,7 @@ function bindField(id, apply) {
     if (!current) return;
     apply(current, $(id).value);
     persistDebounced();
+    updateMetaSummary();
   });
 }
 bindField('f-title', (s, v) => s.title = v);
@@ -1350,7 +1179,7 @@ TAG_CHOICES.forEach(t => {
   cb.type = 'checkbox';
   cb.dataset.tag = t;
   cb.addEventListener('change', () => {
-    if (current) { current.tags = collectTags(); persistDebounced(); updateTagBtn(); }
+    if (current) { current.tags = collectTags(); persistDebounced(); updateTagBtn(); updateMetaSummary(); }
   });
   lab.append(cb, ' ' + t);
   $('f-tagboxes').appendChild(lab);
@@ -1392,6 +1221,7 @@ $('f-rating').addEventListener('click', e => {
   current.rating = (current.rating === idx) ? idx - 1 : idx; // 同じ星をもう一度押すと1つ減らせる
   drawRating(current.rating);
   persistDebounced();
+  updateMetaSummary();
 });
 
 /* ---------- 歌詞編集・注釈 ---------- */
