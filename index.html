@@ -100,14 +100,6 @@
   .detail-nav { display: flex; gap: 8px; margin-bottom: 16px; align-items: center; }
   #prevSong, #nextSong { padding: 4px 12px; font-weight: bold; font-size: 16px; line-height: 1; }
   #navPos { min-width: 44px; text-align: center; }
-  .meta-details { border-top: 1px solid var(--line); margin-top: 4px; }
-  .meta-details > summary {
-    list-style: none; cursor: pointer; padding: 12px 2px 4px; font-size: 13px;
-    color: var(--sub); font-weight: bold; display: flex; align-items: center; gap: 6px;
-  }
-  .meta-details > summary::-webkit-details-marker { display: none; }
-  .meta-details > summary::after { content: "▾"; margin-left: auto; transition: transform .15s; }
-  .meta-details[open] > summary::after { transform: rotate(180deg); }
   #detailView.swiping { transition: transform .05s; }
   .panel {
     background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
@@ -313,6 +305,7 @@
       <option value="added">追加順</option>
       <option value="fav">お気に入り順</option>
       <option value="rating">評価が高い順</option>
+      <option value="ratingLow">評価が低い順</option>
       <option value="title">曲名順</option>
       <option value="artist">アーティスト順</option>
     </select>
@@ -348,8 +341,7 @@
         <input type="text" id="f-artist" placeholder="アーティスト">
       </div>
     </div>
-    <details id="metaDetails" class="meta-details">
-      <summary><span id="metaSummary">⚙ キー・評価・タグ・メモ</span></summary>
+    <div>
       <div class="field-row" style="margin-top:12px">
         <div class="field">
           <label>キー設定</label>
@@ -387,7 +379,7 @@
         <label>歌い方メモ（全体）</label>
         <textarea id="f-memo" placeholder="サビ前はブレス多め、2番Aメロは抑えめ…など"></textarea>
       </div>
-    </details>
+    </div>
   </div>
 
   <div class="panel">
@@ -491,11 +483,12 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 19; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 21; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
 
 let songs = load();
 let current = null;        // 現在開いている曲オブジェクト
+let listScrollY = 0;       // 一覧のスクロール位置（曲を開く前に記憶し、戻った時に復元）
 let popTarget = null;      // ポップオーバー対象のspan
 let saveTimer = null;
 
@@ -537,6 +530,7 @@ function getVisibleList() {
   const coll = new Intl.Collator('ja');
   if (sort === 'fav') list.sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || b.created - a.created);
   else if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
+  else if (sort === 'ratingLow') list.sort((a, b) => a.rating - b.rating);
   else if (sort === 'title') list.sort((a, b) => coll.compare(a.title, b.title));
   else if (sort === 'artist') list.sort((a, b) => coll.compare(a.artist, b.artist));
   else list.sort((a, b) => b.created - a.created);
@@ -550,7 +544,11 @@ function renderList() {
   list.forEach(s => {
     const card = document.createElement('div');
     card.className = 'card' + (selected.has(s.id) ? ' selected' : '');
-    card.onclick = () => { selectMode ? toggleSelect(s.id) : openSong(s.id); };
+    card.onclick = () => {
+      if (selectMode) { toggleSelect(s.id); return; }
+      listScrollY = window.scrollY; // 一覧のスクロール位置を覚えておく
+      openSong(s.id);
+    };
 
     const titlerow = document.createElement('div');
     titlerow.className = 'titlerow';
@@ -598,8 +596,6 @@ function openSong(id) {
   drawRating(current.rating);
   $('lyrics').innerHTML = current.lyrics || '';
   setEditing(false);
-  $('metaDetails').open = false;
-  updateMetaSummary();
   updateNavPos();
   $('listView').hidden = true;
   $('detailView').hidden = false;
@@ -612,6 +608,7 @@ function closeSong() {
   $('detailView').hidden = true;
   $('listView').hidden = false;
   renderList();
+  window.scrollTo(0, listScrollY); // 開く前のスクロール位置に戻す
 }
 $('backBtn').onclick = closeSong;
 
@@ -664,20 +661,6 @@ $('deleteBtn').onclick = () => {
   persist();
   closeSong();
 };
-
-/* 折りたたみ（キー/評価/タグ/メモ）のsummaryに、設定済み内容を要約表示 */
-function updateMetaSummary() {
-  if (!current) return;
-  const parts = [];
-  if (current.key) parts.push('key ' + current.key);
-  if (current.rating) parts.push('★' + current.rating);
-  const tagCount = (current.tags || []).length;
-  if (tagCount) parts.push('タグ' + tagCount);
-  if ((current.memo || '').trim()) parts.push('メモ');
-  $('metaSummary').textContent = parts.length
-    ? '⚙ ' + parts.join('・')
-    : '⚙ キー・評価・タグ・メモ';
-}
 
 function createSong(data) {
   const s = {
@@ -1160,7 +1143,6 @@ function bindField(id, apply) {
     if (!current) return;
     apply(current, $(id).value);
     persistDebounced();
-    updateMetaSummary();
   });
 }
 bindField('f-title', (s, v) => s.title = v);
@@ -1179,7 +1161,7 @@ TAG_CHOICES.forEach(t => {
   cb.type = 'checkbox';
   cb.dataset.tag = t;
   cb.addEventListener('change', () => {
-    if (current) { current.tags = collectTags(); persistDebounced(); updateTagBtn(); updateMetaSummary(); }
+    if (current) { current.tags = collectTags(); persistDebounced(); updateTagBtn(); }
   });
   lab.append(cb, ' ' + t);
   $('f-tagboxes').appendChild(lab);
@@ -1221,7 +1203,6 @@ $('f-rating').addEventListener('click', e => {
   current.rating = (current.rating === idx) ? idx - 1 : idx; // 同じ星をもう一度押すと1つ減らせる
   drawRating(current.rating);
   persistDebounced();
-  updateMetaSummary();
 });
 
 /* ---------- 歌詞編集・注釈 ---------- */
