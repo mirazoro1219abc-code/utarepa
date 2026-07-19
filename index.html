@@ -299,6 +299,7 @@
       <option value="アイドル">アイドル</option>
       <option value="洋楽">洋楽</option>
       <option value="アニソン">アニソン</option>
+      <option value="リラックス">リラックス</option>
       <option value="練習中">練習中</option>
     </select>
     <select id="sortBy">
@@ -483,12 +484,13 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 21; // 画面に表示する版数（更新が届いているかの確認用）
-const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', '練習中'];
+const APP_VER = 22; // 画面に表示する版数（更新が届いているかの確認用）
+const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', 'リラックス', '練習中'];
 
 let songs = load();
 let current = null;        // 現在開いている曲オブジェクト
 let listScrollY = 0;       // 一覧のスクロール位置（曲を開く前に記憶し、戻った時に復元）
+let navList = [];          // 曲を開いた時点の並び順を固定（星を変えても隣移動の順序が変わらないように）
 let popTarget = null;      // ポップオーバー対象のspan
 let saveTimer = null;
 
@@ -579,9 +581,11 @@ function escapeHtml(str) {
 }
 
 /* ---------- 詳細表示 ---------- */
-function openSong(id) {
+function openSong(id, keepNav) {
   current = songs.find(s => s.id === id);
   if (!current) return;
+  // 一覧から開いた時は並び順を固定。隣移動（keepNav）の時は固定した順序を保つ
+  if (!keepNav || !navList.length) navList = getVisibleList();
   $('f-title').value = current.title;
   $('f-artist').value = current.artist;
   document.querySelectorAll('#f-tagboxes input').forEach(cb => {
@@ -612,22 +616,20 @@ function closeSong() {
 }
 $('backBtn').onclick = closeSong;
 
-/* 前後の曲へ（スワイプ・ボタン共通） */
+/* 前後の曲へ（スワイプ・ボタン共通）— 固定した navList の順序で移動 */
 function updateNavPos() {
-  const list = getVisibleList();
-  const idx = list.findIndex(s => current && s.id === current.id);
-  $('navPos').textContent = idx >= 0 ? (idx + 1) + '/' + list.length : '';
+  const idx = navList.findIndex(s => current && s.id === current.id);
+  $('navPos').textContent = idx >= 0 ? (idx + 1) + '/' + navList.length : '';
 }
 function gotoSibling(dir) {
   if (!current || editing) return;
   if ($('cardOverlay').classList.contains('show')) return;
-  const list = getVisibleList();
-  const idx = list.findIndex(s => s.id === current.id);
+  const idx = navList.findIndex(s => s.id === current.id);
   if (idx < 0) return;
   const ni = idx + dir;
   if (ni < 0) { toast('最初の曲です'); return; }
-  if (ni >= list.length) { toast('最後の曲です'); return; }
-  openSong(list[ni].id);
+  if (ni >= navList.length) { toast('最後の曲です'); return; }
+  openSong(navList[ni].id, true);
 }
 $('prevSong').onclick = () => gotoSibling(-1);
 $('nextSong').onclick = () => gotoSibling(1);
@@ -721,6 +723,7 @@ $('bulkAdd').onclick = () => {
             <option value="アイドル">アイドル</option>
             <option value="洋楽">洋楽</option>
             <option value="アニソン">アニソン</option>
+            <option value="リラックス">リラックス</option>
             <option value="練習中">練習中</option>
           </select>
         </label>
