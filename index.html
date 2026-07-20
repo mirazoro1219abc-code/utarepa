@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#faf7f2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -24,12 +24,14 @@
     --shadow: 0 2px 10px rgba(60,50,40,.08);
   }
   * { box-sizing: border-box; }
+  html { touch-action: manipulation; }  /* ダブルタップでの拡大を無効化 */
   body {
     margin: 0;
     font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
     background: var(--bg);
     color: var(--ink);
     line-height: 1.6;
+    -webkit-text-size-adjust: 100%;
   }
   header {
     position: sticky; top: 0; z-index: 20;
@@ -305,11 +307,13 @@
     </select>
     <select id="sortBy">
       <option value="added">追加順</option>
-      <option value="fav">お気に入り順</option>
-      <option value="rating">評価が高い順</option>
-      <option value="ratingLow">評価が低い順</option>
+      <option value="addedRev">追加逆順</option>
+      <option value="rating">評価順</option>
+      <option value="ratingLow">評価逆順</option>
       <option value="title">曲名順</option>
+      <option value="titleRev">曲名逆順</option>
       <option value="artist">アーティスト順</option>
+      <option value="artistRev">アーティスト名逆順</option>
     </select>
     <button id="favFilterBtn" title="お気に入りだけ表示">☆ お気に入り</button>
     <button id="selectBtn">選択</button>
@@ -486,7 +490,7 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 23; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 26; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', 'リラックス', '練習中'];
 
 let songs = load();
@@ -523,7 +527,9 @@ function starsHtml(n) {
 }
 /* 現在の絞り込み・並び替えを適用した曲配列（一覧とスワイプ移動で共有） */
 function getVisibleList() {
-  const q = $('search').value.trim().toLowerCase();
+  const rawQ = $('search').value.trim();
+  const q = rawQ.toLowerCase();
+  const qAlias = aliasResolve(rawQ).toLowerCase(); // 読み→正式名（例: ジャンヌ→janne da arc）
   const fs = $('filterStatus').value;
   const sort = $('sortBy').value;
   let list = songs.filter(s => {
@@ -531,14 +537,16 @@ function getVisibleList() {
     if (fs !== 'all' && !(s.tags || []).includes(fs)) return false;
     if (!q) return true;
     const hay = (s.title + ' ' + s.artist + ' ' + (s.tags || []).join(' ')).toLowerCase();
-    return hay.includes(q);
+    return hay.includes(q) || (qAlias !== q && hay.includes(qAlias));
   });
   const coll = new Intl.Collator('ja');
-  if (sort === 'fav') list.sort((a, b) => (b.fav ? 1 : 0) - (a.fav ? 1 : 0) || b.created - a.created);
-  else if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
+  if (sort === 'rating') list.sort((a, b) => b.rating - a.rating);
   else if (sort === 'ratingLow') list.sort((a, b) => a.rating - b.rating);
   else if (sort === 'title') list.sort((a, b) => coll.compare(a.title, b.title));
+  else if (sort === 'titleRev') list.sort((a, b) => coll.compare(b.title, a.title));
   else if (sort === 'artist') list.sort((a, b) => coll.compare(a.artist, b.artist));
+  else if (sort === 'artistRev') list.sort((a, b) => coll.compare(b.artist, a.artist));
+  else if (sort === 'addedRev') list.sort((a, b) => a.created - b.created);
   else list.sort((a, b) => b.created - a.created);
   return list;
 }
@@ -877,6 +885,22 @@ $('qArtist').addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(
 function normalizeTerm(t) {
   return t.replace(/　/g, ' ').replace(/\s+/g, ' ').trim();
 }
+
+/* 読み（カタカナ等）→ 正式名。Deezer等が読みから英字バンド名を引けない時の補助。
+   iTunesが使える環境では不要（iTunesは読みを理解する）。 */
+const ARTIST_ALIASES = {
+  'ジャンヌ': 'Janne Da Arc', 'ジャンヌダルク': 'Janne Da Arc',
+  'ラルク': "L'Arc-en-Ciel", 'ラルクアンシエル': "L'Arc-en-Ciel",
+  'グレイ': 'GLAY', 'ラッドウィンプス': 'RADWIMPS',
+  'ワンオク': 'ONE OK ROCK', 'ワンオクロック': 'ONE OK ROCK',
+  'マイファス': 'MY FIRST STORY', 'サザン': 'サザンオールスターズ',
+  'ミスチル': 'Mr.Children', 'ミスターチルドレン': 'Mr.Children',
+  'ビーズ': 'B\'z', 'ゆず': 'ゆず', 'あいみょん': 'あいみょん'
+};
+function aliasResolve(s) {
+  const key = normalizeTerm(s || '').replace(/\s+/g, '');
+  return ARTIST_ALIASES[key] || s;
+}
 function itunesUrl(term, cb, attribute) {
   return 'https://itunes.apple.com/search?term=' + encodeURIComponent(normalizeTerm(term)) +
     '&country=JP&media=music&entity=song&limit=100&lang=ja_jp' +
@@ -891,6 +915,9 @@ function itunesUrl(term, cb, attribute) {
 async function itunesSearch(title, artist) {
   title = normalizeTerm(title || '');
   artist = normalizeTerm(artist || '');
+  // 曲名欄だけにバンドの読みを入れた場合はアーティスト検索に振り替える
+  if (!artist && ARTIST_ALIASES[title.replace(/\s+/g, '')]) { artist = title; title = ''; }
+  artist = aliasResolve(artist); // 読み→正式名（アーティスト）
   const dz = { title, artist };
   let term, attribute = '';
   if (title && artist) { term = title + ' ' + artist; }
