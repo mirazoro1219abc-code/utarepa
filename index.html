@@ -57,6 +57,7 @@
   }
   button:hover { background: #f4efe7; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: bold; }
+  #favFilterBtn.active { background: var(--star); border-color: var(--star); color: #fff; font-weight: bold; }
   button.primary:hover { background: #d04530; }
   button.danger { color: #c0392b; border-color: #eccfcb; }
   button.danger:hover { background: #fdf0ee; }
@@ -310,6 +311,7 @@
       <option value="title">曲名順</option>
       <option value="artist">アーティスト順</option>
     </select>
+    <button id="favFilterBtn" title="お気に入りだけ表示">☆ お気に入り</button>
     <button id="selectBtn">選択</button>
     <button class="primary" id="addSong">＋ 曲を追加</button>
   </div>
@@ -484,13 +486,14 @@ const TYPE_LABEL = {
   shakuri: 'しゃくり', fall: 'フォール', kobushi: 'こぶし', vibrato: 'ビブラート',
   falsetto: 'ファルセット', accent: 'アクセント', tame: 'ため', note: 'メモ', breath: 'ブレス'
 };
-const APP_VER = 22; // 画面に表示する版数（更新が届いているかの確認用）
+const APP_VER = 23; // 画面に表示する版数（更新が届いているかの確認用）
 const TAG_CHOICES = ['盛り上がる', 'バラード', 'バンド', 'ボカロ', 'アイドル', '洋楽', 'アニソン', 'リラックス', '練習中'];
 
 let songs = load();
 let current = null;        // 現在開いている曲オブジェクト
 let listScrollY = 0;       // 一覧のスクロール位置（曲を開く前に記憶し、戻った時に復元）
 let navList = [];          // 曲を開いた時点の並び順を固定（星を変えても隣移動の順序が変わらないように）
+let favOnly = false;       // お気に入りだけ表示中か
 let popTarget = null;      // ポップオーバー対象のspan
 let saveTimer = null;
 
@@ -524,6 +527,7 @@ function getVisibleList() {
   const fs = $('filterStatus').value;
   const sort = $('sortBy').value;
   let list = songs.filter(s => {
+    if (favOnly && !s.fav) return false;
     if (fs !== 'all' && !(s.tags || []).includes(fs)) return false;
     if (!q) return true;
     const hay = (s.title + ' ' + s.artist + ' ' + (s.tags || []).join(' ')).toLowerCase();
@@ -625,36 +629,13 @@ function gotoSibling(dir) {
   if (!current || editing) return;
   if ($('cardOverlay').classList.contains('show')) return;
   const idx = navList.findIndex(s => s.id === current.id);
-  if (idx < 0) return;
-  const ni = idx + dir;
-  if (ni < 0) { toast('最初の曲です'); return; }
-  if (ni >= navList.length) { toast('最後の曲です'); return; }
+  if (idx < 0 || !navList.length) return;
+  // 端は折り返す：最後で「次」→先頭、先頭で「前」→末尾
+  const ni = (idx + dir + navList.length) % navList.length;
   openSong(navList[ni].id, true);
 }
 $('prevSong').onclick = () => gotoSibling(-1);
 $('nextSong').onclick = () => gotoSibling(1);
-
-/* 詳細画面の左右スワイプ */
-(() => {
-  const dv = $('detailView');
-  let x0 = null, y0 = null;
-  dv.addEventListener('touchstart', e => {
-    if (e.touches.length !== 1) { x0 = null; return; }
-    x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
-  }, { passive: true });
-  dv.addEventListener('touchend', e => {
-    if (x0 === null) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - x0, dy = t.clientY - y0;
-    x0 = null;
-    if (editing) return;
-    // 入力欄やスライダー上の操作はスワイプ扱いしない
-    if (e.target.closest('input, textarea, select, audio, #lyrics, .speed-row')) return;
-    if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      gotoSibling(dx < 0 ? 1 : -1); // 左へフリック＝次の曲
-    }
-  }, { passive: true });
-})();
 
 $('deleteBtn').onclick = () => {
   if (!current) return;
@@ -1531,7 +1512,21 @@ $('homeBtn').onclick = () => {
   $('search').value = '';
   $('filterStatus').value = 'all';
   localStorage.setItem('utarepa.filter', 'all');
+  favOnly = false; updateFavFilterBtn();
   if (!$('detailView').hidden) closeSong();
+  renderList();
+  window.scrollTo(0, 0);
+};
+
+/* ---------- お気に入りだけ表示 ---------- */
+function updateFavFilterBtn() {
+  const b = $('favFilterBtn');
+  b.textContent = favOnly ? '⭐ お気に入り' : '☆ お気に入り';
+  b.classList.toggle('active', favOnly);
+}
+$('favFilterBtn').onclick = () => {
+  favOnly = !favOnly;
+  updateFavFilterBtn();
   renderList();
   window.scrollTo(0, 0);
 };
